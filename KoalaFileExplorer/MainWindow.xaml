@@ -1,0 +1,492 @@
+<Window x:Class="KoalaFileExplorer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:KoalaFileExplorer.ViewModels"
+        xmlns:conv="clr-namespace:KoalaFileExplorer.Converters"
+        xmlns:models="clr-namespace:KoalaFileExplorer.Models"
+        Title="Koala File Explorer" Height="700" Width="1100"
+        MinHeight="500" MinWidth="800"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F5F5">
+
+    <Window.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <conv:NullToVisibilityConverter x:Key="NullToVis"/>
+        <conv:HexColorToBrushConverter x:Key="HexToBrush"/>
+        <conv:FileIconConverter x:Key="FileIcon"/>
+        <conv:MediaIconConverter x:Key="MediaIcon"/>
+
+        <!-- Tag pill style -->
+        <Style x:Key="TagPill" TargetType="Border">
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="Margin" Value="2"/>
+        </Style>
+
+        <!-- Toolbar button style -->
+        <Style x:Key="ToolBtn" TargetType="Button">
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="3,0"/>
+            <Setter Property="Background" Value="#1976D2"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1565C0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#BDBDBD"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Danger button -->
+        <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource ToolBtn}">
+            <Setter Property="Background" Value="#E53935"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#C62828"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- TreeView item style -->
+        <Style TargetType="TreeViewItem">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+            <Setter Property="Padding" Value="2"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- ═══ TITLE BAR ════════════════════════════════════════════════════ -->
+        <Border DockPanel.Dock="Top" Background="#1565C0" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- App title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="🐨" FontSize="22" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Koala File Explorer" FontSize="18" FontWeight="Bold"
+                               Foreground="White" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Search bar -->
+                <Grid Grid.Column="1" Margin="20,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox x:Name="SearchBox"
+                             Grid.Column="0"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="13"
+                             Padding="8,5"
+                             VerticalContentAlignment="Center"
+                             BorderThickness="0">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="TextBox">
+                                            <Border Background="White" CornerRadius="4,0,0,4" Padding="8,5">
+                                                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <Button Grid.Column="1" Content="🔍 By Name"
+                            Command="{Binding SearchByNameCommand}"
+                            Style="{StaticResource ToolBtn}"
+                            Background="#0D47A1" Margin="0"
+                            Padding="10,5">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <Button Grid.Column="2" Content="🏷 By Tag"
+                            Command="{Binding SearchByTagCommand}"
+                            Style="{StaticResource ToolBtn}"
+                            Background="#0D47A1" Margin="1,0,0,0"
+                            Padding="10,5">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <Button Grid.Column="3" Content="✕"
+                            Command="{Binding ClearSearchCommand}"
+                            Style="{StaticResource ToolBtn}"
+                            Background="#424242" Margin="1,0,0,0"
+                            Padding="8,5"/>
+                </Grid>
+
+                <!-- Current path -->
+                <TextBlock Grid.Column="2" Text="{Binding CurrentPath}"
+                           Foreground="#B3E5FC" FontSize="11"
+                           VerticalAlignment="Center" MaxWidth="300"
+                           TextTrimming="CharacterEllipsis"/>
+            </Grid>
+        </Border>
+
+        <!-- ═══ STATUS BAR ═══════════════════════════════════════════════════ -->
+        <Border DockPanel.Dock="Bottom" Background="#EEEEEE" BorderBrush="#BDBDBD"
+                BorderThickness="0,1,0,0" Padding="8,3">
+            <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="#616161"/>
+        </Border>
+
+        <!-- ═══ MAIN CONTENT ══════════════════════════════════════════════════ -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="150" MaxWidth="400"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="280" MinWidth="200" MaxWidth="500"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*" MinWidth="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ── FILE TREE ────────────────────────────────────────────────── -->
+            <Border Grid.Column="0" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                            BorderThickness="0,0,0,1" Padding="8,6">
+                        <TextBlock Text="📂 File Tree" FontWeight="SemiBold" Foreground="#424242"/>
+                    </Border>
+                    <TreeView x:Name="FileTreeView"
+                              ItemsSource="{Binding RootNodes}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              SelectedItemChanged="FileTreeView_SelectedItemChanged">
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate DataType="{x:Type models:DriveNode}"
+                                                      ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal" Margin="2">
+                                    <TextBlock Text="💾" Margin="0,0,4,0" VerticalAlignment="Center"
+                                               Visibility="{Binding HasDummyChild, Converter={StaticResource InvBoolToVis}}"/>
+                                    <TextBlock Text="📁" Margin="0,0,4,0" VerticalAlignment="Center"
+                                               Visibility="{Binding HasDummyChild, Converter={StaticResource BoolToVis}}"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                                </StackPanel>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                </DockPanel>
+            </Border>
+
+            <!-- Splitter 1 -->
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
+                          Background="#E0E0E0" Cursor="SizeWE"/>
+
+            <!-- ── FILE LIST ────────────────────────────────────────────────── -->
+            <Border Grid.Column="2" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                            BorderThickness="0,0,0,1" Padding="8,6">
+                        <TextBlock Text="📋 File List" FontWeight="SemiBold" Foreground="#424242"/>
+                    </Border>
+
+                    <ListView x:Name="FileListView"
+                              ItemsSource="{Binding Files}"
+                              SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                              BorderThickness="0"
+                              SelectionChanged="FileListView_SelectionChanged"
+                              MouseDoubleClick="FileListView_MouseDoubleClick">
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="" Width="24">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding IsDirectory, Converter={StaticResource FileIcon}}"
+                                                       FontSize="13"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Name" Width="140">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Name}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontSize="12" ToolTip="{Binding FullPath}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Size" Width="60">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding SizeDisplay}" FontSize="11"
+                                                       Foreground="#757575"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="Tags" Width="60">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ItemsControl ItemsSource="{Binding Tags}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="{Binding Color, Converter={StaticResource HexToBrush}}"
+                                                                CornerRadius="6" Padding="4,1" Margin="1"
+                                                                ToolTip="{Binding Name}">
+                                                            <TextBlock Text="{Binding Name}" Foreground="White"
+                                                                       FontSize="9" MaxWidth="50"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </DockPanel>
+            </Border>
+
+            <!-- Splitter 2 -->
+            <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"
+                          Background="#E0E0E0" Cursor="SizeWE"/>
+
+            <!-- ── FILE PLAYER + TAG PANEL ───────────────────────────────────── -->
+            <DockPanel Grid.Column="4" Background="White">
+                <!-- Header -->
+                <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                        BorderThickness="0,0,0,1" Padding="8,6">
+                    <TextBlock Text="▶ File Player &amp; Tags" FontWeight="SemiBold" Foreground="#424242"/>
+                </Border>
+
+                <!-- Tag Management Section (bottom) -->
+                <Border DockPanel.Dock="Bottom" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                        BorderThickness="0,1,0,0" Padding="8">
+                    <StackPanel>
+                        <!-- Customer Tags header -->
+                        <TextBlock Text="Customer Tags" FontWeight="SemiBold" Margin="0,0,0,6"
+                                   Foreground="#424242"/>
+
+                        <!-- Create new tag -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NewTagNameBox" Grid.Column="0"
+                                     Padding="6,4" FontSize="12"
+                                     BorderBrush="#BDBDBD"
+                                     ToolTip="Enter customer name"
+                                     KeyDown="NewTagNameBox_KeyDown"/>
+                            <Rectangle Grid.Column="1" x:Name="TagColorRect"
+                                       Width="28" Height="28" Margin="4,0"
+                                       Fill="#2196F3" Cursor="Hand"
+                                       MouseLeftButtonDown="TagColorRect_Click"
+                                       ToolTip="Click to pick color">
+                                <Rectangle.OpacityMask>
+                                    <VisualBrush>
+                                        <VisualBrush.Visual>
+                                            <Border CornerRadius="3" Background="Black"
+                                                    Width="28" Height="28"/>
+                                        </VisualBrush.Visual>
+                                    </VisualBrush>
+                                </Rectangle.OpacityMask>
+                            </Rectangle>
+                            <Button Grid.Column="2" Content="+ Add Tag"
+                                    Style="{StaticResource ToolBtn}"
+                                    Click="CreateTagBtn_Click"/>
+                        </Grid>
+
+                        <!-- All tags list -->
+                        <TextBlock Text="All Customer Tags:" FontSize="11" Foreground="#757575"
+                                   Margin="0,0,0,4"/>
+                        <ScrollViewer MaxHeight="100" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding AllTags}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,2" Padding="6,3" CornerRadius="4"
+                                                Background="#F5F5F5">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Rectangle Grid.Column="0" Width="12" Height="12"
+                                                           Fill="{Binding Color, Converter={StaticResource HexToBrush}}"
+                                                           Margin="0,0,6,0"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                           FontSize="12" VerticalAlignment="Center"/>
+                                                <Button Grid.Column="2" Content="＋ Tag File"
+                                                        Tag="{Binding}"
+                                                        Click="TagFileBtn_Click"
+                                                        Style="{StaticResource ToolBtn}"
+                                                        Padding="6,2" Margin="0,0,3,0"
+                                                        FontSize="11"/>
+                                                <Button Grid.Column="3" Content="✕"
+                                                        Tag="{Binding}"
+                                                        Click="DeleteTagBtn_Click"
+                                                        Style="{StaticResource DangerBtn}"
+                                                        Padding="6,2" FontSize="11"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- Selected file tags -->
+                        <TextBlock Text="Tags on selected file:" FontSize="11"
+                                   Foreground="#757575" Margin="0,8,0,4"
+                                   Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}"/>
+                        <ScrollViewer MaxHeight="60" VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}">
+                            <ItemsControl ItemsSource="{Binding SelectedFileTags}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding Color, Converter={StaticResource HexToBrush}}"
+                                                CornerRadius="10" Padding="8,3" Margin="2">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" Foreground="White"
+                                                           FontSize="11" VerticalAlignment="Center"/>
+                                                <Button Content=" ✕" Foreground="White"
+                                                        Background="Transparent" BorderThickness="0"
+                                                        Padding="2,0" FontSize="10"
+                                                        Tag="{Binding}"
+                                                        Click="RemoveTagBtn_Click"
+                                                        Cursor="Hand"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+                <!-- Media Player area -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- No selection placeholder -->
+                    <Border Grid.Row="0"
+                            Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}, ConverterParameter=Inverse}">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="🎬" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
+                            <TextBlock Text="Select a file to preview" Foreground="#9E9E9E"
+                                       HorizontalAlignment="Center" FontSize="13" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- File info when selected -->
+                    <StackPanel Grid.Row="0" Margin="12"
+                                Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}">
+                        <TextBlock Text="{Binding SelectedFile.Name}" FontSize="14"
+                                   FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding SelectedFile.FullPath}" FontSize="10"
+                                   Foreground="#9E9E9E" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                        <!-- Media player -->
+                        <Border BorderBrush="#E0E0E0" BorderThickness="1" Background="Black"
+                                Visibility="{Binding CanPlayFile, Converter={StaticResource BoolToVis}}"
+                                Height="280">
+                            <MediaElement x:Name="MediaPlayer"
+                                          Source="{Binding MediaUri}"
+                                          LoadedBehavior="Manual"
+                                          UnloadedBehavior="Stop"
+                                          Stretch="Uniform"
+                                          MediaOpened="MediaPlayer_MediaOpened"
+                                          MediaEnded="MediaPlayer_MediaEnded"
+                                          MediaFailed="MediaPlayer_MediaFailed"/>
+                        </Border>
+
+                        <!-- Non-media file info -->
+                        <StackPanel Visibility="{Binding CanPlayFile, Converter={StaticResource InvBoolToVis}}">
+                            <TextBlock Text="📄" FontSize="48" HorizontalAlignment="Center"
+                                       Opacity="0.4" Margin="0,20,0,8"/>
+                            <TextBlock Text="{Binding SelectedFile.Extension}" FontSize="13"
+                                       Foreground="#757575" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding SelectedFile.SizeDisplay}" FontSize="12"
+                                       Foreground="#9E9E9E" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Media Controls -->
+                    <Border Grid.Row="1" Background="#F5F5F5" BorderBrush="#E0E0E0"
+                            BorderThickness="0,1,0,0" Padding="8,6"
+                            Visibility="{Binding CanPlayFile, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <!-- Seek slider -->
+                            <Slider x:Name="SeekSlider" Minimum="0" Maximum="1"
+                                    Margin="0,0,0,6"
+                                    PreviewMouseLeftButtonDown="SeekSlider_MouseDown"
+                                    PreviewMouseLeftButtonUp="SeekSlider_MouseUp"
+                                    ValueChanged="SeekSlider_ValueChanged"/>
+                            <!-- Buttons -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button Content="⏮" Click="StopBtn_Click" Style="{StaticResource ToolBtn}"
+                                        Background="#616161" ToolTip="Stop"/>
+                                <Button x:Name="PlayPauseBtn" Content="▶ Play"
+                                        Click="PlayPauseBtn_Click"
+                                        Style="{StaticResource ToolBtn}"
+                                        Background="#1976D2"/>
+                                <TextBlock x:Name="TimeDisplay" Text="0:00 / 0:00"
+                                           VerticalAlignment="Center" Margin="10,0"
+                                           FontSize="11" Foreground="#757575"/>
+                                <!-- Volume -->
+                                <TextBlock Text="🔊" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                <Slider x:Name="VolumeSlider" Minimum="0" Maximum="1" Value="1"
+                                        Width="80" VerticalAlignment="Center"
+                                        ValueChanged="VolumeSlider_ValueChanged"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

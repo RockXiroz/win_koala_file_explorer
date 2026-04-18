@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using KoalaFileExplorer.Models;
 using KoalaFileExplorer.Services;
@@ -8,6 +9,14 @@ namespace KoalaFileExplorer.ViewModels;
 public class MainViewModel : ObservableObject
 {
     public readonly TagService _tagService;
+
+    private static readonly string[] _playerPaths =
+    {
+        @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini64.exe",
+        @"C:\Program Files\DAUM\PotPlayer\PotPlayerMini.exe",
+        @"C:\Program Files (x86)\DAUM\PotPlayer\PotPlayerMini.exe",
+        @"C:\Program Files\VideoLAN\VLC\vlc.exe",
+    };
 
     // ── File Tree ──────────────────────────────────────────────────────────
     public ObservableCollection<DriveNode> RootNodes { get; } = new();
@@ -27,6 +36,8 @@ public class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanPlayFile));
                 OnPropertyChanged(nameof(SelectedFileTags));
                 OnPropertyChanged(nameof(SelectedFilePath));
+                OnPropertyChanged(nameof(IsNoFileSelected));
+                OnPropertyChanged(nameof(IsNonMediaFileSelected));
                 MediaUri = null;
             }
         }
@@ -34,10 +45,13 @@ public class MainViewModel : ObservableObject
 
     public string SelectedFilePath => SelectedFile?.FullPath ?? string.Empty;
     public bool CanPlayFile => SelectedFile?.IsMediaFile == true;
+    public bool IsNoFileSelected => SelectedFile == null;
+    public bool IsNonMediaFileSelected => SelectedFile != null && !SelectedFile.IsMediaFile && !SelectedFile.IsDirectory;
+
     public List<CustomerTag> SelectedFileTags =>
         SelectedFile == null ? new() : _tagService.GetTagsForFile(SelectedFile.FullPath);
 
-    // ── Media Player ──────────────────────────────────────────────────────
+    // ── Media ──────────────────────────────────────────────────────────────
     private Uri? _mediaUri;
     public Uri? MediaUri
     {
@@ -57,35 +71,20 @@ public class MainViewModel : ObservableObject
     public string SearchText
     {
         get => _searchText;
-        set
-        {
-            if (SetField(ref _searchText, value))
-                ApplyFilter();
-        }
+        set { if (SetField(ref _searchText, value)) ApplyFilter(); }
     }
 
     private string _searchMode = "Name";
     public string SearchMode
     {
         get => _searchMode;
-        set
-        {
-            if (SetField(ref _searchMode, value))
-                ApplyFilter();
-        }
+        set { if (SetField(ref _searchMode, value)) ApplyFilter(); }
     }
 
     // ── Tags ──────────────────────────────────────────────────────────────
     public ObservableCollection<CustomerTag> AllTags { get; } = new();
 
-    private CustomerTag? _selectedTagFilter;
-    public CustomerTag? SelectedTagFilter
-    {
-        get => _selectedTagFilter;
-        set => SetField(ref _selectedTagFilter, value);
-    }
-
-    // ── Current path ──────────────────────────────────────────────────────
+    // ── Path ──────────────────────────────────────────────────────────────
     private string _currentPath = string.Empty;
     public string CurrentPath
     {
@@ -94,7 +93,7 @@ public class MainViewModel : ObservableObject
     }
 
     // ── Status ────────────────────────────────────────────────────────────
-    private string _statusText = "Ready";
+    private string _statusText = "Ready  |  Keys: 1-5 = star rating  |  0 = clear tags  |  Double-click = open in external player";
     public string StatusText
     {
         get => _statusText;
@@ -119,8 +118,8 @@ public class MainViewModel : ObservableObject
 
         PlayCommand = new RelayCommand(PlayFile, () => CanPlayFile);
         StopCommand = new RelayCommand(StopMedia);
-        AddTagToFileCommand = new RelayCommand(p => AddTagToFile(p as CustomerTag), _ => SelectedFile != null);
-        RemoveTagFromFileCommand = new RelayCommand(p => RemoveTagFromFile(p as CustomerTag));
+        AddTagToFileCommand = new RelayCommand(p => AddTagToFilePublic(p as CustomerTag), _ => SelectedFile != null);
+        RemoveTagFromFileCommand = new RelayCommand(p => RemoveTagFromFilePublic(p as CustomerTag));
         CreateTagCommand = new RelayCommand(p => CreateTag(p as string));
         DeleteTagCommand = new RelayCommand(p => DeleteTag(p as CustomerTag));
         SearchByNameCommand = new RelayCommand(_ => { SearchMode = "Name"; ApplyFilter(); });
@@ -132,7 +131,7 @@ public class MainViewModel : ObservableObject
         RefreshTags();
     }
 
-    // ── File Tree Loading ─────────────────────────────────────────────────
+    // ── File Tree ─────────────────────────────────────────────────────────
     private void LoadDrives()
     {
         RootNodes.Clear();
@@ -154,20 +153,13 @@ public class MainViewModel : ObservableObject
         node.Children.Clear();
         try
         {
-            var dirs = Directory.GetDirectories(node.FullPath)
+            foreach (var dir in Directory.GetDirectories(node.FullPath)
                 .Select(d => new DirectoryInfo(d))
                 .Where(d => !d.Attributes.HasFlag(FileAttributes.Hidden | FileAttributes.System))
-                .OrderBy(d => d.Name);
-
-            foreach (var dir in dirs)
+                .OrderBy(d => d.Name))
             {
                 var child = new DriveNode { Name = dir.Name, FullPath = dir.FullName };
-                try
-                {
-                    if (Directory.GetDirectories(dir.FullName).Length > 0)
-                        child.Children.Add(DriveNode.CreateDummy());
-                }
-                catch { }
+                try { if (Directory.GetDirectories(dir.FullName).Length > 0) child.Children.Add(DriveNode.CreateDummy()); } catch { }
                 node.Children.Add(child);
             }
         }
@@ -187,20 +179,13 @@ public class MainViewModel : ObservableObject
         _allFiles.Clear();
         Files.Clear();
         SearchText = string.Empty;
-
         try
         {
             var dirs = Directory.GetDirectories(path)
                 .Select(d => new DirectoryInfo(d))
                 .Where(d => !d.Attributes.HasFlag(FileAttributes.Hidden))
                 .OrderBy(d => d.Name)
-                .Select(d => new FileItem
-                {
-                    Name = d.Name,
-                    FullPath = d.FullName,
-                    IsDirectory = true,
-                    LastModified = d.LastWriteTime
-                });
+                .Select(d => new FileItem { Name = d.Name, FullPath = d.FullName, IsDirectory = true, LastModified = d.LastWriteTime });
 
             var files = Directory.GetFiles(path)
                 .Select(f => new FileInfo(f))
@@ -208,11 +193,8 @@ public class MainViewModel : ObservableObject
                 .OrderBy(f => f.Name)
                 .Select(f => new FileItem
                 {
-                    Name = f.Name,
-                    FullPath = f.FullName,
-                    IsDirectory = false,
-                    Size = f.Length,
-                    LastModified = f.LastWriteTime,
+                    Name = f.Name, FullPath = f.FullName, IsDirectory = false,
+                    Size = f.Length, LastModified = f.LastWriteTime,
                     Tags = _tagService.GetTagsForFile(f.FullName)
                 });
 
@@ -220,39 +202,57 @@ public class MainViewModel : ObservableObject
                 _allFiles.Add(item);
 
             ApplyFilter();
-            StatusText = $"{_allFiles.Count} items in {path}";
+            StatusText = $"{_allFiles.Count} items  |  Keys: 1-5 = star rating  |  0 = clear tags  |  Double-click = external player";
         }
-        catch (UnauthorizedAccessException)
-        {
-            StatusText = "Access denied.";
-        }
+        catch (UnauthorizedAccessException) { StatusText = "Access denied."; }
     }
 
     private void ApplyFilter()
     {
         Files.Clear();
         var text = SearchText.Trim();
-
         IEnumerable<FileItem> results = _allFiles;
 
         if (!string.IsNullOrEmpty(text))
         {
             if (SearchMode == "Tag")
             {
-                var taggedPaths = new HashSet<string>(
-                    _tagService.GetFilesByTagName(text),
-                    StringComparer.OrdinalIgnoreCase);
-                results = results.Where(f => taggedPaths.Contains(f.FullPath));
+                var tagged = new HashSet<string>(_tagService.GetFilesByTagName(text), StringComparer.OrdinalIgnoreCase);
+                results = results.Where(f => tagged.Contains(f.FullPath));
             }
             else
             {
-                results = results.Where(f =>
-                    f.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
+                results = results.Where(f => f.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
             }
         }
 
         foreach (var item in results)
             Files.Add(item);
+    }
+
+    // ── Show All Files By Tag ─────────────────────────────────────────────
+    public void ShowFilesWithTag(CustomerTag tag)
+    {
+        var paths = _tagService.GetFilesByTag(tag.Id);
+        _allFiles.Clear();
+        Files.Clear();
+        SearchText = string.Empty;
+        CurrentPath = $"📌 Tag: {tag.Name}";
+
+        foreach (var path in paths)
+        {
+            if (!File.Exists(path)) continue;
+            var fi = new FileInfo(path);
+            var item = new FileItem
+            {
+                Name = fi.Name, FullPath = fi.FullName, IsDirectory = false,
+                Size = fi.Length, LastModified = fi.LastWriteTime,
+                Tags = _tagService.GetTagsForFile(path)
+            };
+            _allFiles.Add(item);
+            Files.Add(item);
+        }
+        StatusText = $"Found {Files.Count} files tagged '{tag.Name}'";
     }
 
     // ── Media ─────────────────────────────────────────────────────────────
@@ -265,11 +265,7 @@ public class MainViewModel : ObservableObject
         }
     }
 
-    private void StopMedia()
-    {
-        MediaUri = null;
-        IsPlaying = false;
-    }
+    private void StopMedia() { MediaUri = null; IsPlaying = false; }
 
     // ── Tags ──────────────────────────────────────────────────────────────
     private void RefreshTags()
@@ -282,16 +278,8 @@ public class MainViewModel : ObservableObject
     public void CreateTag(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return;
-        try
-        {
-            _tagService.CreateTag(name);
-            RefreshTags();
-            StatusText = $"Tag '{name}' created.";
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"Error: {ex.Message}";
-        }
+        try { _tagService.CreateTag(name); RefreshTags(); StatusText = $"Tag '{name}' created."; }
+        catch (Exception ex) { StatusText = $"Error: {ex.Message}"; }
     }
 
     public void DeleteTag(CustomerTag? tag)
@@ -299,14 +287,9 @@ public class MainViewModel : ObservableObject
         if (tag == null) return;
         _tagService.DeleteTag(tag.Id);
         RefreshTags();
-        if (SelectedFile != null)
-            OnPropertyChanged(nameof(SelectedFileTags));
+        if (SelectedFile != null) OnPropertyChanged(nameof(SelectedFileTags));
         StatusText = $"Tag '{tag.Name}' deleted.";
     }
-
-    private void AddTagToFile(CustomerTag? tag) => AddTagToFilePublic(tag);
-
-    private void RemoveTagFromFile(CustomerTag? tag) => RemoveTagFromFilePublic(tag);
 
     public void AddTagToFilePublic(CustomerTag? tag)
     {
@@ -314,7 +297,7 @@ public class MainViewModel : ObservableObject
         _tagService.AddTagToFile(SelectedFile.FullPath, tag.Id);
         SelectedFile.Tags = _tagService.GetTagsForFile(SelectedFile.FullPath);
         OnPropertyChanged(nameof(SelectedFileTags));
-        RefreshFileList();
+        ApplyFilter();
         StatusText = $"Tagged '{SelectedFile.Name}' with '{tag.Name}'.";
     }
 
@@ -324,13 +307,40 @@ public class MainViewModel : ObservableObject
         _tagService.RemoveTagFromFile(SelectedFile.FullPath, tag.Id);
         SelectedFile.Tags = _tagService.GetTagsForFile(SelectedFile.FullPath);
         OnPropertyChanged(nameof(SelectedFileTags));
-        RefreshFileList();
+        ApplyFilter();
         StatusText = $"Removed tag '{tag.Name}' from '{SelectedFile.Name}'.";
     }
 
-    private void RefreshFileList()
+    // ── Shortcut helpers ──────────────────────────────────────────────────
+    public void AddStarTag(string tagName)
     {
-        // Re-apply filter to refresh tag display in file list
+        if (SelectedFile == null) return;
+        var tag = _tagService.GetAllTags().FirstOrDefault(t => t.Name == tagName);
+        if (tag != null) AddTagToFilePublic(tag);
+    }
+
+    public void RemoveAllTagsFromFile()
+    {
+        if (SelectedFile == null) return;
+        _tagService.RemoveAllTagsFromFile(SelectedFile.FullPath);
+        SelectedFile.Tags = new List<CustomerTag>();
+        OnPropertyChanged(nameof(SelectedFileTags));
         ApplyFilter();
+        StatusText = $"Removed all tags from '{SelectedFile.Name}'.";
+    }
+
+    // ── Open External ─────────────────────────────────────────────────────
+    public void OpenFileExternal(string filePath)
+    {
+        var player = _playerPaths.FirstOrDefault(File.Exists);
+        try
+        {
+            if (player != null)
+                Process.Start(player, $"\"{filePath}\"");
+            else
+                Process.Start(new ProcessStartInfo { FileName = filePath, UseShellExecute = true });
+            StatusText = $"Opened: {Path.GetFileName(filePath)}";
+        }
+        catch (Exception ex) { StatusText = $"Error opening file: {ex.Message}"; }
     }
 }

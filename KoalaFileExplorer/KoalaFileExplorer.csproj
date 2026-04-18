@@ -8,7 +8,6 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>KoalaFileExplorer</AssemblyName>
     <RootNamespace>KoalaFileExplorer</RootNamespace>
-    <ApplicationIcon>koala.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

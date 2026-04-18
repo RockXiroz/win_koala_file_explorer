@@ -373,7 +373,7 @@
 
                 <!-- Tags section (scrollable) -->
                 <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Padding="8">
+                    <StackPanel Margin="8">
                         <TextBlock Text="Customer Tags" FontWeight="SemiBold" Margin="0,0,0,6"
                                    Foreground="#424242"/>
 

@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace KoalaFileExplorer.Models;
 
 public class FileItem

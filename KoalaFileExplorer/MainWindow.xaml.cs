@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _timer;
     private bool _isDraggingSlider;
     private bool _isMediaLoaded;
+    private string? _currentlyPlayingPath;
 
     private readonly string[] _tagColors =
     {
@@ -48,11 +49,16 @@ public partial class MainWindow : Window
     // ── File List ──────────────────────────────────────────────────────────
     private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        StopMedia();
         _vm.SelectedFile = FileListView.SelectedItem as FileItem;
-        // A: auto-play on selection
-        if (_vm.SelectedFile?.IsMediaFile == true)
-            PlayMedia();
+        var file = _vm.SelectedFile;
+
+        if (file?.IsMediaFile == true)
+        {
+            // Only restart if a different media file is selected
+            if (file.FullPath != _currentlyPlayingPath)
+                PlayMedia();
+        }
+        // Non-media or directory selection: keep current playback running
     }
 
     private void FileListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -86,6 +92,8 @@ public partial class MainWindow : Window
             case Key.D3: _vm.AddStarTag("3star"); e.Handled = true; break;
             case Key.D4: _vm.AddStarTag("4star"); e.Handled = true; break;
             case Key.D5: _vm.AddStarTag("5star"); e.Handled = true; break;
+            case Key.Right: FastForward(); e.Handled = true; break;
+            case Key.Left:  FastForward(-1); e.Handled = true; break;
         }
     }
 
@@ -130,9 +138,11 @@ public partial class MainWindow : Window
 
     private void StopMedia()
     {
+        _currentlyPlayingPath = null;
         MediaPlayer.Stop();
         MediaPlayer.Source = null;
         _vm.IsPlaying = false;
+        _vm.IsPlayerActive = false;
         _isMediaLoaded = false;
         PlayPauseBtn.Content = "▶ Play";
         _timer.Stop();
@@ -144,12 +154,27 @@ public partial class MainWindow : Window
     {
         var file = _vm.SelectedFile;
         if (file?.IsMediaFile != true) return;
+        _currentlyPlayingPath = file.FullPath;
         MediaPlayer.Source = new Uri(file.FullPath);
         MediaPlayer.Play();
         _vm.IsPlaying = true;
+        _vm.IsPlayerActive = true;
         _isMediaLoaded = true;
         PlayPauseBtn.Content = "⏸ Pause";
         _timer.Start();
+    }
+
+    private void FastForward(int direction = 1)
+    {
+        if (!_isMediaLoaded || !MediaPlayer.NaturalDuration.HasTimeSpan) return;
+        double secs = 10;
+        if (double.TryParse(SkipSecondsBox.Text, out var parsed) && parsed > 0) secs = parsed;
+        var newPos = MediaPlayer.Position + TimeSpan.FromSeconds(direction * secs);
+        var dur = MediaPlayer.NaturalDuration.TimeSpan;
+        if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
+        if (newPos > dur) newPos = dur;
+        MediaPlayer.Position = newPos;
+        SeekSlider.Value = newPos.TotalSeconds;
     }
 
     private void MediaPlayer_MediaOpened(object sender, RoutedEventArgs e)
@@ -161,7 +186,9 @@ public partial class MainWindow : Window
 
     private void MediaPlayer_MediaEnded(object sender, RoutedEventArgs e)
     {
+        _currentlyPlayingPath = null;
         _vm.IsPlaying = false;
+        _vm.IsPlayerActive = false;
         _isMediaLoaded = false;
         PlayPauseBtn.Content = "▶ Play";
         _timer.Stop();
@@ -289,5 +316,13 @@ public partial class MainWindow : Window
     {
         if (((Button)sender).Tag is CustomerTag tag)
             _vm.RemoveTagFromFilePublic(tag);
+    }
+
+    private void FastForwardBtn_Click(object sender, RoutedEventArgs e) => FastForward();
+
+    private void MediaPreview_Click(object sender, MouseButtonEventArgs e)
+    {
+        var path = _currentlyPlayingPath;
+        if (path != null) _vm.OpenFileExternal(path);
     }
 }

@@ -38,6 +38,7 @@ public class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(SelectedFilePath));
                 OnPropertyChanged(nameof(IsNoFileSelected));
                 OnPropertyChanged(nameof(IsNonMediaFileSelected));
+                OnPropertyChanged(nameof(ShowNoFileSelected));
                 MediaUri = null;
             }
         }
@@ -47,6 +48,15 @@ public class MainViewModel : ObservableObject
     public bool CanPlayFile => SelectedFile?.IsMediaFile == true;
     public bool IsNoFileSelected => SelectedFile == null;
     public bool IsNonMediaFileSelected => SelectedFile != null && !SelectedFile.IsMediaFile && !SelectedFile.IsDirectory;
+
+    private bool _isPlayerActive;
+    public bool IsPlayerActive
+    {
+        get => _isPlayerActive;
+        set { if (SetField(ref _isPlayerActive, value)) OnPropertyChanged(nameof(ShowNoFileSelected)); }
+    }
+
+    public bool ShowNoFileSelected => IsNoFileSelected && !IsPlayerActive;
 
     public List<CustomerTag> SelectedFileTags =>
         SelectedFile == null ? new() : _tagService.GetTagsForFile(SelectedFile.FullPath);
@@ -294,21 +304,21 @@ public class MainViewModel : ObservableObject
     public void AddTagToFilePublic(CustomerTag? tag)
     {
         if (tag == null || SelectedFile == null) return;
-        _tagService.AddTagToFile(SelectedFile.FullPath, tag.Id);
-        SelectedFile.Tags = _tagService.GetTagsForFile(SelectedFile.FullPath);
+        var file = SelectedFile;
+        _tagService.AddTagToFile(file.FullPath, tag.Id);
+        file.Tags = _tagService.GetTagsForFile(file.FullPath);
         OnPropertyChanged(nameof(SelectedFileTags));
-        ApplyFilter();
-        StatusText = $"Tagged '{SelectedFile.Name}' with '{tag.Name}'.";
+        StatusText = $"Tagged '{file.Name}' with '{tag.Name}'.";
     }
 
     public void RemoveTagFromFilePublic(CustomerTag? tag)
     {
         if (tag == null || SelectedFile == null) return;
-        _tagService.RemoveTagFromFile(SelectedFile.FullPath, tag.Id);
-        SelectedFile.Tags = _tagService.GetTagsForFile(SelectedFile.FullPath);
+        var file = SelectedFile;
+        _tagService.RemoveTagFromFile(file.FullPath, tag.Id);
+        file.Tags = _tagService.GetTagsForFile(file.FullPath);
         OnPropertyChanged(nameof(SelectedFileTags));
-        ApplyFilter();
-        StatusText = $"Removed tag '{tag.Name}' from '{SelectedFile.Name}'.";
+        StatusText = $"Removed tag '{tag.Name}' from '{file.Name}'.";
     }
 
     // ── Shortcut helpers ──────────────────────────────────────────────────
@@ -322,11 +332,11 @@ public class MainViewModel : ObservableObject
     public void RemoveAllTagsFromFile()
     {
         if (SelectedFile == null) return;
-        _tagService.RemoveAllTagsFromFile(SelectedFile.FullPath);
-        SelectedFile.Tags = new List<CustomerTag>();
+        var file = SelectedFile;
+        _tagService.RemoveAllTagsFromFile(file.FullPath);
+        file.Tags = new List<CustomerTag>();
         OnPropertyChanged(nameof(SelectedFileTags));
-        ApplyFilter();
-        StatusText = $"Removed all tags from '{SelectedFile.Name}'.";
+        StatusText = $"Removed all tags from '{file.Name}'.";
     }
 
     // ── Open External ─────────────────────────────────────────────────────

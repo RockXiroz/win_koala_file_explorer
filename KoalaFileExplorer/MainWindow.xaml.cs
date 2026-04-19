@@ -21,28 +21,7 @@ public partial class MainWindow : Window
     private string? _currentlyPlayingPath;
     private ListView? _contextTargetList;
 
-    private readonly string[] _tagColors =
-    {
-        "#2196F3", "#E91E63", "#4CAF50", "#FF9800", "#9C27B0",
-        "#00BCD4", "#F44336", "#8BC34A", "#FF5722", "#607D8B"
-    };
-    private int _colorIndex;
-
-    private readonly string[] _textColors = { "#FFFFFF", "#000000", "#F5F5F5", "#212121" };
-    private int _textColorIndex;
     private double _findPaneHeight = 160;
-
-    // Color palettes for tag swatch cycling in the tag list
-    private static readonly string[] _swatchBgColors =
-    {
-        "#2196F3", "#E91E63", "#4CAF50", "#FF9800", "#9C27B0",
-        "#00BCD4", "#F44336", "#8BC34A", "#FF5722", "#607D8B",
-        "#795548", "#FFC107", "#3F51B5", "#009688", "#FF4081"
-    };
-    private static readonly string[] _swatchTextColors =
-    {
-        "#FFFFFF", "#000000", "#F5F5F5", "#212121", "#FFF9C4", "#FFCDD2"
-    };
 
     public MainWindow()
     {
@@ -387,8 +366,18 @@ public partial class MainWindow : Window
 
     private void MediaPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
     {
-        _vm.StatusText = $"Media error: {e.ErrorException?.Message ?? "Unknown error"}";
+        var path = _currentlyPlayingPath;
         StopMedia();
+        if (path != null)
+        {
+            var ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            _vm.StatusText = $"Built-in player cannot decode {ext} — opening with external player.";
+            _vm.OpenFileExternal(path);
+        }
+        else
+        {
+            _vm.StatusText = $"Media error: {e.ErrorException?.Message ?? "Unknown error"}";
+        }
     }
 
     private void Timer_Tick(object? sender, EventArgs e)
@@ -475,34 +464,54 @@ public partial class MainWindow : Window
 
     private void TagColorRect_Click(object sender, MouseButtonEventArgs e)
     {
-        _colorIndex = (_colorIndex + 1) % _tagColors.Length;
-        var color = (Color)ColorConverter.ConvertFromString(_tagColors[_colorIndex]);
-        TagColorRect.Fill = new SolidColorBrush(color);
+        var current = ((SolidColorBrush)TagColorRect.Fill).Color;
+        if (PickColor($"#{current.R:X2}{current.G:X2}{current.B:X2}", out var hex))
+        {
+            TagColorRect.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        }
     }
 
     private void TagTextColorRect_Click(object sender, MouseButtonEventArgs e)
     {
-        _textColorIndex = (_textColorIndex + 1) % _textColors.Length;
-        var color = (Color)ColorConverter.ConvertFromString(_textColors[_textColorIndex]);
-        TagTextColorRect.Fill = new SolidColorBrush(color);
+        var current = ((SolidColorBrush)TagTextColorRect.Fill).Color;
+        if (PickColor($"#{current.R:X2}{current.G:X2}{current.B:X2}", out var hex))
+        {
+            TagTextColorRect.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        }
     }
 
     private void TagBgColorSwatch_Click(object sender, MouseButtonEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not CustomerTag tag) return;
-        var idx = Array.IndexOf(_swatchBgColors, tag.Color);
-        var next = _swatchBgColors[(idx + 1) % _swatchBgColors.Length];
-        _vm.UpdateTagColor(tag, next, tag.TextColor);
+        if (PickColor(tag.Color, out var hex))
+            _vm.UpdateTagColor(tag, hex, tag.TextColor);
         e.Handled = true;
     }
 
     private void TagTextColorSwatch_Click(object sender, MouseButtonEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is not CustomerTag tag) return;
-        var idx = Array.IndexOf(_swatchTextColors, tag.TextColor);
-        var next = _swatchTextColors[(idx + 1) % _swatchTextColors.Length];
-        _vm.UpdateTagColor(tag, tag.Color, next);
+        if (PickColor(tag.TextColor, out var hex))
+            _vm.UpdateTagColor(tag, tag.Color, hex);
         e.Handled = true;
+    }
+
+    private static bool PickColor(string currentHex, out string resultHex)
+    {
+        using var dlg = new System.Windows.Forms.ColorDialog
+        {
+            FullOpen = true,
+            AnyColor = true,
+            Color = System.Drawing.ColorTranslator.FromHtml(currentHex)
+        };
+        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        {
+            var c = dlg.Color;
+            resultHex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            return true;
+        }
+        resultHex = currentHex;
+        return false;
     }
 
     private void TagFileBtn_Click(object sender, RoutedEventArgs e)

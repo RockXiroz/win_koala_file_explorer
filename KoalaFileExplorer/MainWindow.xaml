@@ -177,31 +177,138 @@
                 <ColumnDefinition Width="*" MinWidth="350"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ── FILE TREE ──────────────────────────────────────────────── -->
+            <!-- ── FILE TREE + TAGS (A) ──────────────────────────────────── -->
             <Border Grid.Column="0" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E0E0E0"
-                            BorderThickness="0,0,0,1" Padding="8,6">
-                        <TextBlock Text="📂 File Tree" FontWeight="SemiBold" Foreground="#424242"/>
-                    </Border>
-                    <TreeView x:Name="FileTreeView" ItemsSource="{Binding RootNodes}"
-                              Background="Transparent" BorderThickness="0"
-                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                              SelectedItemChanged="FileTreeView_SelectedItemChanged">
-                        <TreeView.ItemTemplate>
-                            <HierarchicalDataTemplate DataType="{x:Type models:DriveNode}"
-                                                      ItemsSource="{Binding Children}">
-                                <StackPanel Orientation="Horizontal" Margin="2">
-                                    <TextBlock Text="💾" Margin="0,0,4,0" VerticalAlignment="Center"
-                                               Visibility="{Binding HasDummyChild, Converter={StaticResource InvBoolToVis}}"/>
-                                    <TextBlock Text="📁" Margin="0,0,4,0" VerticalAlignment="Center"
-                                               Visibility="{Binding HasDummyChild, Converter={StaticResource BoolToVis}}"/>
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="230" MinHeight="80" MaxHeight="420"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- File tree -->
+                    <DockPanel Grid.Row="0">
+                        <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                                BorderThickness="0,0,0,1" Padding="8,6">
+                            <TextBlock Text="📂 File Tree" FontWeight="SemiBold" Foreground="#424242"/>
+                        </Border>
+                        <TreeView x:Name="FileTreeView" ItemsSource="{Binding RootNodes}"
+                                  Background="Transparent" BorderThickness="0"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  SelectedItemChanged="FileTreeView_SelectedItemChanged">
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate DataType="{x:Type models:DriveNode}"
+                                                          ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Margin="2">
+                                        <TextBlock Text="💾" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                   Visibility="{Binding HasDummyChild, Converter={StaticResource InvBoolToVis}}"/>
+                                        <TextBlock Text="📁" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                   Visibility="{Binding HasDummyChild, Converter={StaticResource BoolToVis}}"/>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontSize="12"/>
+                                    </StackPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DockPanel>
+
+                    <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch"
+                                  Background="#BDBDBD" Cursor="SizeNS"/>
+
+                    <!-- ── TAGS PANE (A) ───────────────────────────────────── -->
+                    <Border Grid.Row="2" Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,0,0,0">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Background="#EEEEEE" BorderBrush="#E0E0E0"
+                                    BorderThickness="0,0,0,1" Padding="8,5">
+                                <TextBlock Text="🏷 Tags" FontWeight="SemiBold" Foreground="#424242" FontSize="12"/>
+                            </Border>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="6">
+                                    <!-- New tag row -->
+                                    <Grid Margin="0,0,0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="NewTagNameBox" Grid.Column="0" Padding="4,3" FontSize="11"
+                                                 BorderBrush="#BDBDBD" ToolTip="Tag name"
+                                                 KeyDown="NewTagNameBox_KeyDown"/>
+                                        <Rectangle Grid.Column="1" x:Name="TagColorRect" Width="22" Height="22"
+                                                   Margin="3,0" Fill="#2196F3" Cursor="Hand"
+                                                   MouseLeftButtonDown="TagColorRect_Click" ToolTip="Color"/>
+                                        <Button Grid.Column="2" Content="+" Style="{StaticResource ToolBtn}"
+                                                Padding="7,3" FontSize="13"
+                                                Click="CreateTagBtn_Click" ToolTip="Create tag"/>
+                                    </Grid>
+
+                                    <!-- All tags list -->
+                                    <ItemsControl ItemsSource="{Binding AllTags}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,2" Padding="4,3" CornerRadius="3" Background="#F0F0F0">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Rectangle Grid.Column="0" Width="10" Height="10"
+                                                                   Fill="{Binding Color, Converter={StaticResource HexToBrush}}"
+                                                                   Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                                   FontSize="11" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="2" Content="📁"
+                                                                Tag="{Binding}" Click="ShowTagFilesBtn_Click"
+                                                                Style="{StaticResource GreenBtn}"
+                                                                Padding="3,2" Margin="0,0,2,0" FontSize="10"
+                                                                ToolTip="Browse files with tag"/>
+                                                        <Button Grid.Column="3" Content="+"
+                                                                Tag="{Binding}" Click="TagFileBtn_Click"
+                                                                Style="{StaticResource ToolBtn}"
+                                                                Padding="3,2" Margin="0,0,2,0" FontSize="12"
+                                                                ToolTip="Tag selected file"/>
+                                                        <Button Grid.Column="4" Content="✕"
+                                                                Tag="{Binding}" Click="DeleteTagBtn_Click"
+                                                                Style="{StaticResource DangerBtn}"
+                                                                Padding="4,2" FontSize="10"
+                                                                ToolTip="Delete tag"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Tags on selected file -->
+                                    <TextBlock Text="Selected file tags:" FontSize="10" Foreground="#757575"
+                                               Margin="0,6,0,3"
+                                               Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}"/>
+                                    <ItemsControl ItemsSource="{Binding SelectedFileTags}"
+                                                  Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{Binding Color, Converter={StaticResource HexToBrush}}"
+                                                        CornerRadius="8" Padding="6,2" Margin="1,1">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Name}" Foreground="White"
+                                                                   FontSize="10" VerticalAlignment="Center"/>
+                                                        <Button Content=" ✕" Foreground="White" Background="Transparent"
+                                                                BorderThickness="0" Padding="1,0" FontSize="9"
+                                                                Tag="{Binding}" Click="RemoveTagBtn_Click" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </StackPanel>
-                            </HierarchicalDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
-                </DockPanel>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Grid>
             </Border>
 
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
@@ -271,19 +378,18 @@
             <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch"
                           Background="#E0E0E0" Cursor="SizeWE"/>
 
-            <!-- ── FILE PLAYER + TAGS (right panel, B fills space, C = splitter) ── -->
+            <!-- ── FILE PLAYER + FIND PANE (B) ─────────────────────────────── -->
             <Grid Grid.Column="4" Background="White">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>           <!-- Header -->
-                    <RowDefinition Height="*"/>              <!-- B: Player fills remaining space -->
-                    <RowDefinition Height="5"/>              <!-- C: GridSplitter (adjust size) -->
-                    <RowDefinition Height="230" MinHeight="120" MaxHeight="450"/>  <!-- Tags -->
+                    <RowDefinition Height="Auto"/>   <!-- Header -->
+                    <RowDefinition Height="*"/>      <!-- Player fills remaining space -->
+                    <RowDefinition Height="Auto"/>   <!-- Find pane (B) — 0 when collapsed -->
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
                 <Border Grid.Row="0" Background="#FAFAFA" BorderBrush="#E0E0E0"
                         BorderThickness="0,0,0,1" Padding="8,6">
-                    <TextBlock Text="▶ File Player &amp; Tags" FontWeight="SemiBold" Foreground="#424242"/>
+                    <TextBlock Text="▶ File Player" FontWeight="SemiBold" Foreground="#424242"/>
                 </Border>
 
                 <!-- B: Player area (fills all available height) -->
@@ -377,98 +483,88 @@
                     </Border>
                 </Grid>
 
-                <!-- C: GridSplitter — drag to adjust player vs tags height -->
-                <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch"
-                              VerticalAlignment="Stretch" Background="#BDBDBD" Cursor="SizeNS"/>
-
-                <!-- Tags section (scrollable) -->
-                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="8">
-                        <TextBlock Text="Customer Tags" FontWeight="SemiBold" Margin="0,0,0,6"
-                                   Foreground="#424242"/>
-
-                        <!-- New tag input -->
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="NewTagNameBox" Grid.Column="0" Padding="6,4" FontSize="12"
-                                     BorderBrush="#BDBDBD" ToolTip="Enter customer name"
-                                     KeyDown="NewTagNameBox_KeyDown"/>
-                            <Rectangle Grid.Column="1" x:Name="TagColorRect" Width="28" Height="28"
-                                       Margin="4,0" Fill="#2196F3" Cursor="Hand"
-                                       MouseLeftButtonDown="TagColorRect_Click" ToolTip="Click to change color"/>
-                            <Button Grid.Column="2" Content="+ Add Tag" Style="{StaticResource ToolBtn}"
-                                    Click="CreateTagBtn_Click"/>
-                        </Grid>
-
-                        <!-- Tag list -->
-                        <TextBlock Text="All Tags:" FontSize="11" Foreground="#757575" Margin="0,0,0,4"/>
-                        <ItemsControl ItemsSource="{Binding AllTags}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Margin="0,2" Padding="5,3" CornerRadius="4" Background="#F5F5F5">
-                                        <Grid>
+                <!-- ── FIND PANE (B) — toggled by Ctrl+F ─────────────────── -->
+                <Grid Grid.Row="2"
+                      Visibility="{Binding IsFindPaneOpen, Converter={StaticResource BoolToVis}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="5"/>
+                        <RowDefinition Height="220" MinHeight="80" MaxHeight="400"/>
+                    </Grid.RowDefinitions>
+                    <GridSplitter Grid.Row="0" Height="5" HorizontalAlignment="Stretch"
+                                  Background="#BDBDBD" Cursor="SizeNS"/>
+                    <Border Grid.Row="1" Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,0,0,0">
+                        <DockPanel>
+                            <!-- Find header -->
+                            <Border DockPanel.Dock="Top" Background="#EEEEEE" BorderBrush="#E0E0E0"
+                                    BorderThickness="0,0,0,1" Padding="8,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍 Find Files  (Ctrl+F)" FontWeight="SemiBold"
+                                               FontSize="12" Foreground="#424242" VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1" Content="✕" Click="CloseFindPaneBtn_Click"
+                                            Style="{StaticResource ToolBtn}" Background="#9E9E9E"
+                                            Padding="6,2" FontSize="11"/>
+                                </Grid>
+                            </Border>
+                            <!-- Input row -->
+                            <Grid DockPanel.Dock="Top" Margin="8,6,8,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="FindPathsBox" Grid.Column="0"
+                                         AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                                         Height="46" FontSize="11" Padding="6,4"
+                                         ToolTip="One path per line: file path or folder path (Ctrl+Enter to search)"
+                                         KeyDown="FindPathsBox_KeyDown"/>
+                                <Button Grid.Column="1" Content="Search" Click="FindFilesBtn_Click"
+                                        Style="{StaticResource ToolBtn}" Margin="4,0,0,0" VerticalAlignment="Stretch"/>
+                            </Grid>
+                            <TextBlock DockPanel.Dock="Top" Margin="8,0,8,4" FontSize="10" Foreground="#9E9E9E"
+                                       Text="Enter file or folder path (one per line or comma-separated). Ctrl+Enter to search."/>
+                            <!-- Results -->
+                            <ListView x:Name="FindResultsList"
+                                      ItemsSource="{Binding FindResults}"
+                                      BorderThickness="0"
+                                      ItemContainerStyle="{StaticResource FileListItem}"
+                                      MouseDoubleClick="FindResultsList_MouseDoubleClick"
+                                      VirtualizingStackPanel.IsVirtualizing="True"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Height="46">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="50"/>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="54"/>
                                             </Grid.ColumnDefinitions>
-                                            <Rectangle Grid.Column="0" Width="12" Height="12"
-                                                       Fill="{Binding Color, Converter={StaticResource HexToBrush}}"
-                                                       Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding Name}"
-                                                       FontSize="12" VerticalAlignment="Center"/>
-                                            <!-- Browse all files with this tag -->
-                                            <Button Grid.Column="2" Content="📁 Browse"
-                                                    Tag="{Binding}" Click="ShowTagFilesBtn_Click"
-                                                    Style="{StaticResource GreenBtn}"
-                                                    Padding="6,2" Margin="0,0,3,0" FontSize="11"
-                                                    ToolTip="Show all files with this tag"/>
-                                            <Button Grid.Column="3" Content="＋ Tag File"
-                                                    Tag="{Binding}" Click="TagFileBtn_Click"
-                                                    Style="{StaticResource ToolBtn}"
-                                                    Padding="6,2" Margin="0,0,3,0" FontSize="11"/>
-                                            <Button Grid.Column="4" Content="✕"
-                                                    Tag="{Binding}" Click="DeleteTagBtn_Click"
-                                                    Style="{StaticResource DangerBtn}"
-                                                    Padding="6,2" FontSize="11"/>
+                                            <Grid Grid.Column="0" ClipToBounds="True" Margin="1">
+                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
+                                                       Visibility="{Binding HasThumbnail, Converter={StaticResource BoolToVis}}"/>
+                                                <TextBlock Text="{Binding IsDirectory, Converter={StaticResource FileIcon}}"
+                                                           FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Visibility="{Binding HasThumbnail, Converter={StaticResource InvBoolToVis}}"/>
+                                            </Grid>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="5,0,3,0">
+                                                <TextBlock Text="{Binding Name}" FontSize="11"
+                                                           TextTrimming="CharacterEllipsis" ToolTip="{Binding FullPath}"/>
+                                                <TextBlock Text="{Binding FullPath}" FontSize="9"
+                                                           Foreground="#9E9E9E" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding SizeDisplay}"
+                                                       FontSize="10" Foreground="#757575"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                       Margin="0,0,4,0"/>
                                         </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <!-- Tags on selected file -->
-                        <TextBlock Text="Tags on selected file:" FontSize="11" Foreground="#757575"
-                                   Margin="0,8,0,4"
-                                   Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}"/>
-                        <ItemsControl ItemsSource="{Binding SelectedFileTags}"
-                                      Visibility="{Binding SelectedFile, Converter={StaticResource NullToVis}}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{Binding Color, Converter={StaticResource HexToBrush}}"
-                                            CornerRadius="10" Padding="8,3" Margin="2">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding Name}" Foreground="White"
-                                                       FontSize="11" VerticalAlignment="Center"/>
-                                            <Button Content=" ✕" Foreground="White" Background="Transparent"
-                                                    BorderThickness="0" Padding="2,0" FontSize="10"
-                                                    Tag="{Binding}" Click="RemoveTagBtn_Click" Cursor="Hand"/>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </DockPanel>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
     </DockPanel>

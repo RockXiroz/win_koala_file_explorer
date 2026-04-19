@@ -94,6 +94,16 @@ public class MainViewModel : ObservableObject
     // ── Tags ──────────────────────────────────────────────────────────────
     public ObservableCollection<CustomerTag> AllTags { get; } = new();
 
+    // ── Find pane ─────────────────────────────────────────────────────────
+    private bool _isFindPaneOpen;
+    public bool IsFindPaneOpen
+    {
+        get => _isFindPaneOpen;
+        set => SetField(ref _isFindPaneOpen, value);
+    }
+
+    public ObservableCollection<FileItem> FindResults { get; } = new();
+
     // ── Path ──────────────────────────────────────────────────────────────
     private string _currentPath = string.Empty;
     public string CurrentPath
@@ -322,6 +332,63 @@ public class MainViewModel : ObservableObject
     }
 
     // ── Shortcut helpers ──────────────────────────────────────────────────
+    public void ShowFilesWithStarTag(string tagName)
+    {
+        var tag = AllTags.FirstOrDefault(t => t.Name == tagName);
+        if (tag != null) ShowFilesWithTag(tag);
+    }
+
+    public void FindFilesByPaths(string input)
+    {
+        FindResults.Clear();
+        if (string.IsNullOrWhiteSpace(input)) return;
+        var paths = input.Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(p => p.Trim()).Where(p => p.Length > 0);
+        foreach (var path in paths)
+        {
+            if (File.Exists(path))
+            {
+                var fi = new FileInfo(path);
+                FindResults.Add(new FileItem
+                {
+                    Name = fi.Name, FullPath = fi.FullName, IsDirectory = false,
+                    Size = fi.Length, LastModified = fi.LastWriteTime,
+                    Tags = _tagService.GetTagsForFile(fi.FullName)
+                });
+            }
+            else if (Directory.Exists(path))
+            {
+                try
+                {
+                    foreach (var fi in Directory.GetFiles(path)
+                        .Select(f => new FileInfo(f))
+                        .Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden))
+                        .OrderBy(f => f.Name))
+                    {
+                        FindResults.Add(new FileItem
+                        {
+                            Name = fi.Name, FullPath = fi.FullName, IsDirectory = false,
+                            Size = fi.Length, LastModified = fi.LastWriteTime,
+                            Tags = _tagService.GetTagsForFile(fi.FullName)
+                        });
+                    }
+                }
+                catch { }
+            }
+            else
+            {
+                var lower = path.ToLowerInvariant();
+                foreach (var f in _allFiles.Where(f => !f.IsDirectory &&
+                    f.FullPath.ToLowerInvariant().Contains(lower)))
+                {
+                    if (!FindResults.Any(r => r.FullPath.Equals(f.FullPath, StringComparison.OrdinalIgnoreCase)))
+                        FindResults.Add(f);
+                }
+            }
+        }
+        StatusText = $"Find: {FindResults.Count} file(s) found.";
+    }
+
     public void AddStarTag(string tagName)
     {
         if (SelectedFile == null) return;

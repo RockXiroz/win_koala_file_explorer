@@ -50,15 +50,7 @@ public partial class MainWindow : Window
     private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _vm.SelectedFile = FileListView.SelectedItem as FileItem;
-        var file = _vm.SelectedFile;
-
-        if (file?.IsMediaFile == true)
-        {
-            // Only restart if a different media file is selected
-            if (file.FullPath != _currentlyPlayingPath)
-                PlayMedia();
-        }
-        // Non-media or directory selection: keep current playback running
+        // No auto-play on single click — use double-click to play
     }
 
     private void FileListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -71,17 +63,39 @@ public partial class MainWindow : Window
             _vm.NavigateTo(file.FullPath);
             LoadThumbnailsAsync();
         }
+        else if (file.IsMediaFile)
+        {
+            PlayMedia();
+        }
         else
         {
-            // Double-click opens in external player
             _vm.OpenFileExternal(file.FullPath);
         }
     }
 
-    // ── Keyboard shortcuts (1-5 = star tags, 0 = clear) ───────────────────
+    // ── Keyboard shortcuts ────────────────────────────────────────────────
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+
+        if (ctrl)
+        {
+            switch (e.Key)
+            {
+                case Key.D1: _vm.ShowFilesWithStarTag("1star"); LoadThumbnailsAsync(); e.Handled = true; return;
+                case Key.D2: _vm.ShowFilesWithStarTag("2star"); LoadThumbnailsAsync(); e.Handled = true; return;
+                case Key.D3: _vm.ShowFilesWithStarTag("3star"); LoadThumbnailsAsync(); e.Handled = true; return;
+                case Key.D4: _vm.ShowFilesWithStarTag("4star"); LoadThumbnailsAsync(); e.Handled = true; return;
+                case Key.D5: _vm.ShowFilesWithStarTag("5star"); LoadThumbnailsAsync(); e.Handled = true; return;
+                case Key.F:
+                    _vm.IsFindPaneOpen = !_vm.IsFindPaneOpen;
+                    if (_vm.IsFindPaneOpen) FindPathsBox.Focus();
+                    e.Handled = true;
+                    return;
+            }
+        }
+
         if (Keyboard.FocusedElement is TextBox) return;
 
         switch (e.Key)
@@ -324,5 +338,33 @@ public partial class MainWindow : Window
     {
         var path = _currentlyPlayingPath;
         if (path != null) _vm.OpenFileExternal(path);
+    }
+
+    // ── Find pane (B) ─────────────────────────────────────────────────────
+    private void FindFilesBtn_Click(object sender, RoutedEventArgs e)
+        => _vm.FindFilesByPaths(FindPathsBox.Text);
+
+    private void FindPathsBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
+            _vm.FindFilesByPaths(FindPathsBox.Text);
+    }
+
+    private void CloseFindPaneBtn_Click(object sender, RoutedEventArgs e)
+        => _vm.IsFindPaneOpen = false;
+
+    private void FindResultsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var file = FindResultsList.SelectedItem as FileItem;
+        if (file == null) return;
+        if (file.IsMediaFile)
+        {
+            _vm.SelectedFile = file;
+            PlayMedia();
+        }
+        else
+        {
+            _vm.OpenFileExternal(file.FullPath);
+        }
     }
 }

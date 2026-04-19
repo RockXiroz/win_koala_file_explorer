@@ -54,13 +54,13 @@ public class TagService
 
     public CustomerTag? GetTag(string id) => _tags.FirstOrDefault(t => t.Id == id);
 
-    public CustomerTag CreateTag(string name, string color = "#2196F3")
+    public CustomerTag CreateTag(string name, string color = "#2196F3", string textColor = "#FFFFFF")
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Tag name cannot be empty.");
         if (_tags.Any(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Tag '{name}' already exists.");
-        var tag = new CustomerTag { Name = name.Trim(), Color = color };
+        var tag = new CustomerTag { Name = name.Trim(), Color = color, TextColor = textColor };
         _tags.Add(tag);
         Save();
         return tag;

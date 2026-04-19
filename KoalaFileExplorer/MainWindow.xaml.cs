@@ -28,6 +28,10 @@ public partial class MainWindow : Window
     };
     private int _colorIndex;
 
+    private readonly string[] _textColors = { "#FFFFFF", "#000000", "#F5F5F5", "#212121" };
+    private int _textColorIndex;
+    private double _findPaneHeight = 160;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -38,13 +42,15 @@ public partial class MainWindow : Window
         _timer.Tick += Timer_Tick;
         MediaPlayer.Volume = VolumeSlider.Value;
 
-        // Build and assign context menus
-        var cm1 = BuildFileContextMenu();
-        var cm2 = BuildFileContextMenu();
-        FileListView.ContextMenu = cm1;
-        FindResultsList.ContextMenu = cm2;
-        cm1.Opened += ContextMenu_Opened;
-        cm2.Opened += ContextMenu_Opened;
+        var cm = BuildFileContextMenu();
+        FileListView.ContextMenu = cm;
+        cm.Opened += ContextMenu_Opened;
+
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IsFindPaneOpen))
+                UpdateFindPaneRows(_vm.IsFindPaneOpen);
+        };
     }
 
     // ── File Tree ──────────────────────────────────────────────────────────
@@ -204,6 +210,19 @@ public partial class MainWindow : Window
     private void SortType_Click(object sender, RoutedEventArgs e) => _vm.SetSort("Type");
 
     // ── Keyboard shortcuts ─────────────────────────────────────────────────
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        base.OnPreviewKeyDown(e);
+        if (Keyboard.FocusedElement is TextBox) return;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var action = _vm.KeyBindings.GetAction(key, Keyboard.Modifiers);
+        if (action is "FastForward" or "Rewind")
+        {
+            FastForward(action == "Rewind" ? -1 : 1);
+            e.Handled = true;
+        }
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
@@ -212,7 +231,6 @@ public partial class MainWindow : Window
         var action = _vm.KeyBindings.GetAction(key, mods);
         if (action == null) return;
 
-        // Non-modifier shortcuts skip TextBox focus
         if (mods == ModifierKeys.None && Keyboard.FocusedElement is TextBox) return;
 
         switch (action)
@@ -223,8 +241,6 @@ public partial class MainWindow : Window
             case "Tag3Star":    _vm.AddStarTag("3star"); e.Handled = true; break;
             case "Tag4Star":    _vm.AddStarTag("4star"); e.Handled = true; break;
             case "Tag5Star":    _vm.AddStarTag("5star"); e.Handled = true; break;
-            case "FastForward": FastForward(); e.Handled = true; break;
-            case "Rewind":      FastForward(-1); e.Handled = true; break;
             case "Browse1Star": _vm.ShowFilesWithStarTag("1star"); LoadThumbnailsAsync(); e.Handled = true; break;
             case "Browse2Star": _vm.ShowFilesWithStarTag("2star"); LoadThumbnailsAsync(); e.Handled = true; break;
             case "Browse3Star": _vm.ShowFilesWithStarTag("3star"); LoadThumbnailsAsync(); e.Handled = true; break;
@@ -232,12 +248,31 @@ public partial class MainWindow : Window
             case "Browse5Star": _vm.ShowFilesWithStarTag("5star"); LoadThumbnailsAsync(); e.Handled = true; break;
             case "ToggleFind":
                 _vm.IsFindPaneOpen = !_vm.IsFindPaneOpen;
-                if (_vm.IsFindPaneOpen) FindPathsBox.Focus();
                 e.Handled = true; break;
             case "DeleteFiles":
                 var sel = FileListView.SelectedItems.OfType<FileItem>().ToList();
                 if (sel.Any()) DeleteFiles(sel);
                 e.Handled = true; break;
+        }
+    }
+
+    private void UpdateFindPaneRows(bool open)
+    {
+        if (open)
+        {
+            FindSplitterRow.Height = new GridLength(5);
+            FindPaneRow.Height = new GridLength(_findPaneHeight, GridUnitType.Pixel);
+            FindPaneSplitter.Visibility = Visibility.Visible;
+            FindPaneContent.Visibility = Visibility.Visible;
+            FindFileNameBox.Focus();
+        }
+        else
+        {
+            _findPaneHeight = FindPaneRow.ActualHeight > 0 ? FindPaneRow.ActualHeight : _findPaneHeight;
+            FindSplitterRow.Height = new GridLength(0);
+            FindPaneRow.Height = new GridLength(0);
+            FindPaneSplitter.Visibility = Visibility.Collapsed;
+            FindPaneContent.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -403,11 +438,13 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        var color = ((SolidColorBrush)TagColorRect.Fill).Color;
-        var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        var bg = ((SolidColorBrush)TagColorRect.Fill).Color;
+        var bgHex = $"#{bg.R:X2}{bg.G:X2}{bg.B:X2}";
+        var fg = ((SolidColorBrush)TagTextColorRect.Fill).Color;
+        var fgHex = $"#{fg.R:X2}{fg.G:X2}{fg.B:X2}";
         try
         {
-            var tag = _vm._tagService.CreateTag(name, hex);
+            var tag = _vm._tagService.CreateTag(name, bgHex, fgHex);
             _vm.AllTags.Add(tag);
             NewTagNameBox.Clear();
             _vm.StatusText = $"Tag '{name}' created.";
@@ -429,6 +466,13 @@ public partial class MainWindow : Window
         _colorIndex = (_colorIndex + 1) % _tagColors.Length;
         var color = (Color)ColorConverter.ConvertFromString(_tagColors[_colorIndex]);
         TagColorRect.Fill = new SolidColorBrush(color);
+    }
+
+    private void TagTextColorRect_Click(object sender, MouseButtonEventArgs e)
+    {
+        _textColorIndex = (_textColorIndex + 1) % _textColors.Length;
+        var color = (Color)ColorConverter.ConvertFromString(_textColors[_textColorIndex]);
+        TagTextColorRect.Fill = new SolidColorBrush(color);
     }
 
     private void TagFileBtn_Click(object sender, RoutedEventArgs e)
@@ -468,25 +512,24 @@ public partial class MainWindow : Window
             _vm.RemoveTagFromFilePublic(tag);
     }
 
-    // ── Find pane (B) ─────────────────────────────────────────────────────
+    // ── Find pane ─────────────────────────────────────────────────────────
     private void FindFilesBtn_Click(object sender, RoutedEventArgs e)
-        => _vm.FindFilesByPaths(FindPathsBox.Text);
+    {
+        _vm.SearchFiles(FindFileNameBox.Text, FindPathsBox.Text);
+        LoadThumbnailsAsync();
+    }
 
     private void FindPathsBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) != 0)
-            _vm.FindFilesByPaths(FindPathsBox.Text);
+        {
+            _vm.SearchFiles(FindFileNameBox.Text, FindPathsBox.Text);
+            LoadThumbnailsAsync();
+        }
     }
 
     private void CloseFindPaneBtn_Click(object sender, RoutedEventArgs e)
         => _vm.IsFindPaneOpen = false;
-
-    private void FindResultsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        var file = FindResultsList.SelectedItem as FileItem;
-        if (file == null) return;
-        _vm.OpenFileExternal(file.FullPath);
-    }
 
     private void BrowseFilesBtn_Click(object sender, RoutedEventArgs e)
     {

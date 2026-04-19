@@ -137,6 +137,13 @@ public class MainViewModel : ObservableObject
         set => SetField(ref _isFindPaneOpen, value);
     }
 
+    private string _findFileName = string.Empty;
+    public string FindFileName
+    {
+        get => _findFileName;
+        set => SetField(ref _findFileName, value);
+    }
+
     public ObservableCollection<FileItem> FindResults { get; } = new();
 
     // ── Path ──────────────────────────────────────────────────────────────
@@ -201,9 +208,23 @@ public class MainViewModel : ObservableObject
                 Name = $"{drive.Name} ({drive.VolumeLabel})",
                 FullPath = drive.RootDirectory.FullName
             };
+            try
+            {
+                var used = drive.TotalSize - drive.AvailableFreeSpace;
+                node.CapacityText = $"{FormatBytes(used)} / {FormatBytes(drive.TotalSize)}";
+                node.UsedPercent = drive.TotalSize > 0 ? (int)(used * 100L / drive.TotalSize) : 0;
+            }
+            catch { }
             node.Children.Add(DriveNode.CreateDummy());
             RootNodes.Add(node);
         }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1_073_741_824L) return $"{bytes / 1_073_741_824.0:0.#} GB";
+        if (bytes >= 1_048_576L) return $"{bytes / 1_048_576.0:0.#} MB";
+        return $"{bytes / 1024.0:0.#} KB";
     }
 
     public void LoadChildren(DriveNode? node)
@@ -420,34 +441,48 @@ public class MainViewModel : ObservableObject
         if (tag != null) ShowFilesWithTag(tag);
     }
 
-    public void FindFilesByPaths(string input)
+    public void SearchFiles(string fileName, string pathsInput)
     {
-        FindResults.Clear();
-        if (string.IsNullOrWhiteSpace(input)) return;
-        var paths = input.Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
-                         .Select(p => p.Trim()).Where(p => p.Length > 0);
-        foreach (var path in paths)
+        _allFiles.Clear();
+        Files.Clear();
+        SearchText = string.Empty;
+
+        var name = fileName.Trim();
+        var roots = string.IsNullOrWhiteSpace(pathsInput)
+            ? (string.IsNullOrEmpty(CurrentPath) || CurrentPath.StartsWith("🔍") || CurrentPath.StartsWith("📌")
+                ? Array.Empty<string>()
+                : new[] { CurrentPath })
+            : pathsInput.Split(new[] { '\n', '\r', ',' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(p => p.Trim()).Where(p => p.Length > 0).ToArray();
+
+        var pattern = string.IsNullOrEmpty(name) ? "*" : $"*{name}*";
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var root in roots)
         {
-            if (File.Exists(path))
+            if (File.Exists(root))
             {
-                var fi = new FileInfo(path);
-                FindResults.Add(new FileItem
+                var fi = new FileInfo(root);
+                if ((string.IsNullOrEmpty(name) || fi.Name.Contains(name, StringComparison.OrdinalIgnoreCase))
+                    && seen.Add(fi.FullName))
                 {
-                    Name = fi.Name, FullPath = fi.FullName, IsDirectory = false,
-                    Size = fi.Length, LastModified = fi.LastWriteTime,
-                    Tags = _tagService.GetTagsForFile(fi.FullName)
-                });
+                    _allFiles.Add(new FileItem
+                    {
+                        Name = fi.Name, FullPath = fi.FullName, IsDirectory = false,
+                        Size = fi.Length, LastModified = fi.LastWriteTime,
+                        Tags = _tagService.GetTagsForFile(fi.FullName)
+                    });
+                }
             }
-            else if (Directory.Exists(path))
+            else if (Directory.Exists(root))
             {
                 try
                 {
-                    foreach (var fi in Directory.GetFiles(path)
-                        .Select(f => new FileInfo(f))
-                        .Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden))
-                        .OrderBy(f => f.Name))
+                    foreach (var path in Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories))
                     {
-                        FindResults.Add(new FileItem
+                        if (!seen.Add(path)) continue;
+                        var fi = new FileInfo(path);
+                        _allFiles.Add(new FileItem
                         {
                             Name = fi.Name, FullPath = fi.FullName, IsDirectory = false,
                             Size = fi.Length, LastModified = fi.LastWriteTime,
@@ -457,18 +492,12 @@ public class MainViewModel : ObservableObject
                 }
                 catch { }
             }
-            else
-            {
-                var lower = path.ToLowerInvariant();
-                foreach (var f in _allFiles.Where(f => !f.IsDirectory &&
-                    f.FullPath.ToLowerInvariant().Contains(lower)))
-                {
-                    if (!FindResults.Any(r => r.FullPath.Equals(f.FullPath, StringComparison.OrdinalIgnoreCase)))
-                        FindResults.Add(f);
-                }
-            }
         }
-        StatusText = $"Find: {FindResults.Count} file(s) found.";
+
+        ApplyFilter();
+        var label = string.IsNullOrEmpty(name) ? "*" : $"\"{name}\"";
+        CurrentPath = $"🔍 {label}";
+        StatusText = $"Found {_allFiles.Count} file(s) matching {label}";
     }
 
     public void AddStarTag(string tagName)

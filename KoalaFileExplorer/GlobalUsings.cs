@@ -1,0 +1,16 @@
+// Pin WPF types that collide with System.Windows.Forms when UseWindowsForms=true
+global using Application    = System.Windows.Application;
+global using Button         = System.Windows.Controls.Button;
+global using CheckBox       = System.Windows.Controls.CheckBox;
+global using ComboBox       = System.Windows.Controls.ComboBox;
+global using Control        = System.Windows.Controls.Control;
+global using Cursor         = System.Windows.Input.Cursor;
+global using KeyEventArgs   = System.Windows.Input.KeyEventArgs;
+global using Label          = System.Windows.Controls.Label;
+global using ListBox        = System.Windows.Controls.ListBox;
+global using ListView       = System.Windows.Controls.ListView;
+global using MessageBox     = System.Windows.MessageBox;
+global using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+global using RadioButton    = System.Windows.Controls.RadioButton;
+global using TextBox        = System.Windows.Controls.TextBox;
+global using ToolTip        = System.Windows.Controls.ToolTip;

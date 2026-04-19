@@ -449,7 +449,6 @@ public partial class MainWindow : Window
             _vm.AllTags.Add(tag);
             NewTagNameBox.Clear();
             _vm.StatusText = $"Tag '{name}' created.";
-            _colorIndex = (_colorIndex + 1) % _tagColors.Length;
         }
         catch (Exception ex)
         {

@@ -1,0 +1,57 @@
+<Window x:Class="KoalaFileExplorer.Views.KeyBindingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Keyboard Shortcuts" Width="520" Height="500"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
+        MinWidth="400" MinHeight="350"
+        Background="#F5F5F5">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Margin="0,0,0,8" FontSize="12" Foreground="#616161"
+                   Text="Click 'Change' next to a shortcut, then press a new key combination."/>
+
+        <DataGrid Grid.Row="1" x:Name="BindingsGrid"
+                  AutoGenerateColumns="False" CanUserAddRows="False"
+                  CanUserDeleteRows="False" IsReadOnly="True"
+                  SelectionMode="Single" GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column" RowHeight="34"
+                  Background="White" BorderBrush="#E0E0E0" BorderThickness="1">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"
+                                    ElementStyle="{StaticResource {x:Type TextBlock}}"/>
+                <DataGridTextColumn Header="Shortcut" Binding="{Binding DisplayText}" Width="110"/>
+                <DataGridTemplateColumn Width="80" Header="">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="Change" Tag="{Binding}" Click="ChangeBtn_Click"
+                                    Padding="6,3" Margin="3,2" FontSize="11" Cursor="Hand"
+                                    Background="#1976D2" Foreground="White" BorderThickness="0"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Recording hint -->
+        <Border Grid.Row="2" x:Name="RecordingBorder" Background="#FFF8E1" CornerRadius="4"
+                Padding="10,6" Margin="0,8,0,0" Visibility="Collapsed">
+            <TextBlock x:Name="RecordingText" FontSize="12" Foreground="#E65100"/>
+        </Border>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Reset Defaults" Click="ResetBtn_Click"
+                    Padding="12,6" Margin="0,0,8,0" FontSize="12" Cursor="Hand"
+                    Background="#FF7043" Foreground="White" BorderThickness="0"/>
+            <Button Content="Save &amp; Close" Click="SaveBtn_Click"
+                    Padding="12,6" FontSize="12" Cursor="Hand"
+                    Background="#388E3C" Foreground="White" BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>

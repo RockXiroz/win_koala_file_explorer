@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -6,6 +7,8 @@ using System.Windows.Threading;
 using KoalaFileExplorer.Models;
 using KoalaFileExplorer.Services;
 using KoalaFileExplorer.ViewModels;
+using KoalaFileExplorer.Views;
+using Microsoft.Win32;
 
 namespace KoalaFileExplorer;
 
@@ -16,6 +19,7 @@ public partial class MainWindow : Window
     private bool _isDraggingSlider;
     private bool _isMediaLoaded;
     private string? _currentlyPlayingPath;
+    private ListView? _contextTargetList;
 
     private readonly string[] _tagColors =
     {
@@ -33,6 +37,14 @@ public partial class MainWindow : Window
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += Timer_Tick;
         MediaPlayer.Volume = VolumeSlider.Value;
+
+        // Build and assign context menus
+        var cm1 = BuildFileContextMenu();
+        var cm2 = BuildFileContextMenu();
+        FileListView.ContextMenu = cm1;
+        FindResultsList.ContextMenu = cm2;
+        cm1.Opened += ContextMenu_Opened;
+        cm2.Opened += ContextMenu_Opened;
     }
 
     // ── File Tree ──────────────────────────────────────────────────────────
@@ -50,22 +62,21 @@ public partial class MainWindow : Window
     private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         _vm.SelectedFile = FileListView.SelectedItem as FileItem;
-        // No auto-play on single click — use double-click to play
+        var file = _vm.SelectedFile;
+        // Single click: auto-play if media file changes
+        if (file?.IsMediaFile == true && file.FullPath != _currentlyPlayingPath)
+            PlayMedia();
+        // Non-media click: keep current playback running
     }
 
     private void FileListView_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         var file = _vm.SelectedFile;
         if (file == null) return;
-
         if (file.IsDirectory)
         {
             _vm.NavigateTo(file.FullPath);
             LoadThumbnailsAsync();
-        }
-        else if (file.IsMediaFile)
-        {
-            PlayMedia();
         }
         else
         {
@@ -73,41 +84,160 @@ public partial class MainWindow : Window
         }
     }
 
-    // ── Keyboard shortcuts ────────────────────────────────────────────────
+    // ── Context menu (right-click) ─────────────────────────────────────────
+    private void FileList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ListView lv) return;
+        _contextTargetList = lv;
+        var item = (e.OriginalSource as FrameworkElement)?.DataContext as FileItem;
+        if (item != null && !lv.SelectedItems.Contains(item))
+        {
+            lv.SelectedItems.Clear();
+            lv.SelectedItem = item;
+        }
+    }
+
+    private ContextMenu BuildFileContextMenu()
+    {
+        var menu = new ContextMenu();
+
+        var playItem = new MenuItem { Header = "▶  Play Preview" };
+        playItem.Click += (_, _) =>
+        {
+            var f = _contextTargetList?.SelectedItem as FileItem;
+            if (f?.IsMediaFile == true) { _vm.SelectedFile = f; PlayMedia(); }
+        };
+
+        var extItem = new MenuItem { Header = "📂  Open with External Player" };
+        extItem.Click += (_, _) =>
+        {
+            var f = _contextTargetList?.SelectedItem as FileItem;
+            if (f != null) _vm.OpenFileExternal(f.FullPath);
+        };
+
+        var explorerItem = new MenuItem { Header = "📁  Show in Explorer" };
+        explorerItem.Click += (_, _) =>
+        {
+            var f = _contextTargetList?.SelectedItem as FileItem;
+            if (f != null) ShowInExplorer(f.FullPath);
+        };
+
+        var tagsMenu = new MenuItem { Header = "🏷  Add Tag", Tag = "TagsMenu" };
+
+        var removeTagsItem = new MenuItem { Header = "🗑  Remove All Tags" };
+        removeTagsItem.Click += (_, _) =>
+        {
+            foreach (var f in GetContextSelectedFiles())
+                _vm.RemoveAllTagsFromFilePath(f.FullPath);
+        };
+
+        var copyItem = new MenuItem { Header = "📋  Copy Path" };
+        copyItem.Click += (_, _) =>
+        {
+            var f = _contextTargetList?.SelectedItem as FileItem;
+            if (f != null) Clipboard.SetText(f.FullPath);
+        };
+
+        var deleteItem = new MenuItem { Header = "🗑  Delete" };
+        deleteItem.Click += (_, _) => DeleteFiles(GetContextSelectedFiles().ToList());
+
+        menu.Items.Add(playItem);
+        menu.Items.Add(extItem);
+        menu.Items.Add(explorerItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(tagsMenu);
+        menu.Items.Add(removeTagsItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(copyItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(deleteItem);
+        return menu;
+    }
+
+    private void ContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu menu) return;
+        var tagsMenu = menu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Tag?.ToString() == "TagsMenu");
+        if (tagsMenu == null) return;
+        tagsMenu.Items.Clear();
+        foreach (var tag in _vm.AllTags)
+        {
+            var item = new MenuItem { Header = tag.Name, Tag = tag };
+            item.Click += (s, _) =>
+            {
+                foreach (var f in GetContextSelectedFiles())
+                {
+                    _vm.SelectedFile = f;
+                    _vm.AddTagToFilePublic((s as MenuItem)?.Tag as CustomerTag);
+                }
+            };
+            tagsMenu.Items.Add(item);
+        }
+    }
+
+    private IEnumerable<FileItem> GetContextSelectedFiles()
+        => (_contextTargetList?.SelectedItems.OfType<FileItem>() ?? Enumerable.Empty<FileItem>())
+           .Where(f => !f.IsDirectory);
+
+    private static void ShowInExplorer(string path)
+    {
+        try { Process.Start("explorer.exe", $"/select,\"{path}\""); } catch { }
+    }
+
+    // ── Delete ─────────────────────────────────────────────────────────────
+    private void DeleteFiles(List<FileItem> files)
+    {
+        var toDelete = files.Where(f => !f.IsDirectory).ToList();
+        if (!toDelete.Any()) return;
+        var msg = toDelete.Count == 1
+            ? $"Permanently delete '{toDelete[0].Name}'?"
+            : $"Permanently delete {toDelete.Count} files?";
+        if (MessageBox.Show(msg, "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            != MessageBoxResult.Yes) return;
+        _vm.DeleteFiles(toDelete);
+    }
+
+    // ── Sort buttons ───────────────────────────────────────────────────────
+    private void SortName_Click(object sender, RoutedEventArgs e) => _vm.SetSort("Name");
+    private void SortDate_Click(object sender, RoutedEventArgs e) => _vm.SetSort("Date");
+    private void SortSize_Click(object sender, RoutedEventArgs e) => _vm.SetSort("Size");
+    private void SortType_Click(object sender, RoutedEventArgs e) => _vm.SetSort("Type");
+
+    // ── Keyboard shortcuts ─────────────────────────────────────────────────
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var mods = Keyboard.Modifiers;
+        var action = _vm.KeyBindings.GetAction(key, mods);
+        if (action == null) return;
 
-        if (ctrl)
+        // Non-modifier shortcuts skip TextBox focus
+        if (mods == ModifierKeys.None && Keyboard.FocusedElement is TextBox) return;
+
+        switch (action)
         {
-            switch (e.Key)
-            {
-                case Key.D1: _vm.ShowFilesWithStarTag("1star"); LoadThumbnailsAsync(); e.Handled = true; return;
-                case Key.D2: _vm.ShowFilesWithStarTag("2star"); LoadThumbnailsAsync(); e.Handled = true; return;
-                case Key.D3: _vm.ShowFilesWithStarTag("3star"); LoadThumbnailsAsync(); e.Handled = true; return;
-                case Key.D4: _vm.ShowFilesWithStarTag("4star"); LoadThumbnailsAsync(); e.Handled = true; return;
-                case Key.D5: _vm.ShowFilesWithStarTag("5star"); LoadThumbnailsAsync(); e.Handled = true; return;
-                case Key.F:
-                    _vm.IsFindPaneOpen = !_vm.IsFindPaneOpen;
-                    if (_vm.IsFindPaneOpen) FindPathsBox.Focus();
-                    e.Handled = true;
-                    return;
-            }
-        }
-
-        if (Keyboard.FocusedElement is TextBox) return;
-
-        switch (e.Key)
-        {
-            case Key.D0: _vm.RemoveAllTagsFromFile(); e.Handled = true; break;
-            case Key.D1: _vm.AddStarTag("1star"); e.Handled = true; break;
-            case Key.D2: _vm.AddStarTag("2star"); e.Handled = true; break;
-            case Key.D3: _vm.AddStarTag("3star"); e.Handled = true; break;
-            case Key.D4: _vm.AddStarTag("4star"); e.Handled = true; break;
-            case Key.D5: _vm.AddStarTag("5star"); e.Handled = true; break;
-            case Key.Right: FastForward(); e.Handled = true; break;
-            case Key.Left:  FastForward(-1); e.Handled = true; break;
+            case "ClearTags":   _vm.RemoveAllTagsFromFile(); e.Handled = true; break;
+            case "Tag1Star":    _vm.AddStarTag("1star"); e.Handled = true; break;
+            case "Tag2Star":    _vm.AddStarTag("2star"); e.Handled = true; break;
+            case "Tag3Star":    _vm.AddStarTag("3star"); e.Handled = true; break;
+            case "Tag4Star":    _vm.AddStarTag("4star"); e.Handled = true; break;
+            case "Tag5Star":    _vm.AddStarTag("5star"); e.Handled = true; break;
+            case "FastForward": FastForward(); e.Handled = true; break;
+            case "Rewind":      FastForward(-1); e.Handled = true; break;
+            case "Browse1Star": _vm.ShowFilesWithStarTag("1star"); LoadThumbnailsAsync(); e.Handled = true; break;
+            case "Browse2Star": _vm.ShowFilesWithStarTag("2star"); LoadThumbnailsAsync(); e.Handled = true; break;
+            case "Browse3Star": _vm.ShowFilesWithStarTag("3star"); LoadThumbnailsAsync(); e.Handled = true; break;
+            case "Browse4Star": _vm.ShowFilesWithStarTag("4star"); LoadThumbnailsAsync(); e.Handled = true; break;
+            case "Browse5Star": _vm.ShowFilesWithStarTag("5star"); LoadThumbnailsAsync(); e.Handled = true; break;
+            case "ToggleFind":
+                _vm.IsFindPaneOpen = !_vm.IsFindPaneOpen;
+                if (_vm.IsFindPaneOpen) FindPathsBox.Focus();
+                e.Handled = true; break;
+            case "DeleteFiles":
+                var sel = FileListView.SelectedItems.OfType<FileItem>().ToList();
+                if (sel.Any()) DeleteFiles(sel);
+                e.Handled = true; break;
         }
     }
 
@@ -131,7 +261,6 @@ public partial class MainWindow : Window
     private void PlayPauseBtn_Click(object sender, RoutedEventArgs e)
     {
         if (!_isMediaLoaded) { PlayMedia(); return; }
-
         if (_vm.IsPlaying)
         {
             MediaPlayer.Pause();
@@ -250,7 +379,14 @@ public partial class MainWindow : Window
         return t.Hours > 0 ? $"{t.Hours}:{t.Minutes:D2}:{t.Seconds:D2}" : $"{t.Minutes}:{t.Seconds:D2}";
     }
 
-    // ── External player ────────────────────────────────────────────────────
+    private void FastForwardBtn_Click(object sender, RoutedEventArgs e) => FastForward();
+
+    private void MediaPreview_Click(object sender, MouseButtonEventArgs e)
+    {
+        var path = _currentlyPlayingPath;
+        if (path != null) _vm.OpenFileExternal(path);
+    }
+
     private void OpenExternalBtn_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.SelectedFile != null)
@@ -263,7 +399,7 @@ public partial class MainWindow : Window
         var name = NewTagNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name))
         {
-            MessageBox.Show("Please enter a customer tag name.", "Validation",
+            MessageBox.Show("Please enter a tag name.", "Validation",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -332,14 +468,6 @@ public partial class MainWindow : Window
             _vm.RemoveTagFromFilePublic(tag);
     }
 
-    private void FastForwardBtn_Click(object sender, RoutedEventArgs e) => FastForward();
-
-    private void MediaPreview_Click(object sender, MouseButtonEventArgs e)
-    {
-        var path = _currentlyPlayingPath;
-        if (path != null) _vm.OpenFileExternal(path);
-    }
-
     // ── Find pane (B) ─────────────────────────────────────────────────────
     private void FindFilesBtn_Click(object sender, RoutedEventArgs e)
         => _vm.FindFilesByPaths(FindPathsBox.Text);
@@ -357,14 +485,31 @@ public partial class MainWindow : Window
     {
         var file = FindResultsList.SelectedItem as FileItem;
         if (file == null) return;
-        if (file.IsMediaFile)
-        {
-            _vm.SelectedFile = file;
-            PlayMedia();
-        }
-        else
-        {
-            _vm.OpenFileExternal(file.FullPath);
-        }
+        _vm.OpenFileExternal(file.FullPath);
     }
+
+    private void BrowseFilesBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "Select Files",
+            Multiselect = true,
+            Filter = "All Files (*.*)|*.*|Media Files|*.mp4;*.mkv;*.avi;*.wmv;*.mov;*.mp3;*.wav;*.flac"
+        };
+        if (dlg.ShowDialog() != true) return;
+        var paths = string.Join("\n", dlg.FileNames);
+        FindPathsBox.Text = string.IsNullOrEmpty(FindPathsBox.Text) ? paths : FindPathsBox.Text + "\n" + paths;
+    }
+
+    private void BrowseFolderBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog { Title = "Select Folder", Multiselect = true };
+        if (dlg.ShowDialog() != true) return;
+        var paths = string.Join("\n", dlg.FolderNames);
+        FindPathsBox.Text = string.IsNullOrEmpty(FindPathsBox.Text) ? paths : FindPathsBox.Text + "\n" + paths;
+    }
+
+    // ── Shortcuts dialog ───────────────────────────────────────────────────
+    private void ShowShortcutsBtn_Click(object sender, RoutedEventArgs e)
+        => new KeyBindingsDialog(_vm.KeyBindings) { Owner = this }.ShowDialog();
 }

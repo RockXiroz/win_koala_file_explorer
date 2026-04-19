@@ -9,6 +9,7 @@ namespace KoalaFileExplorer.ViewModels;
 public class MainViewModel : ObservableObject
 {
     public readonly TagService _tagService;
+    public readonly KeyBindingsService KeyBindings;
 
     private static readonly string[] _playerPaths =
     {
@@ -94,6 +95,40 @@ public class MainViewModel : ObservableObject
     // ── Tags ──────────────────────────────────────────────────────────────
     public ObservableCollection<CustomerTag> AllTags { get; } = new();
 
+    // ── Sort ─────────────────────────────────────────────────────────────
+    private string _sortField = "Name";
+    public string SortField
+    {
+        get => _sortField;
+        set { if (SetField(ref _sortField, value)) { NotifySortHeaders(); ApplyFilter(); } }
+    }
+
+    private bool _sortAscending = true;
+    public bool SortAscending
+    {
+        get => _sortAscending;
+        set { if (SetField(ref _sortAscending, value)) { NotifySortHeaders(); ApplyFilter(); } }
+    }
+
+    public string NameSortHeader => "Name" + (SortField == "Name" ? (SortAscending ? " ▲" : " ▼") : "");
+    public string DateSortHeader => "Date" + (SortField == "Date" ? (SortAscending ? " ▲" : " ▼") : "");
+    public string SizeSortHeader => "Size" + (SortField == "Size" ? (SortAscending ? " ▲" : " ▼") : "");
+    public string TypeSortHeader => "Type" + (SortField == "Type" ? (SortAscending ? " ▲" : " ▼") : "");
+
+    private void NotifySortHeaders()
+    {
+        OnPropertyChanged(nameof(NameSortHeader));
+        OnPropertyChanged(nameof(DateSortHeader));
+        OnPropertyChanged(nameof(SizeSortHeader));
+        OnPropertyChanged(nameof(TypeSortHeader));
+    }
+
+    public void SetSort(string field)
+    {
+        if (SortField == field) SortAscending = !SortAscending;
+        else SortField = field;
+    }
+
     // ── Find pane ─────────────────────────────────────────────────────────
     private bool _isFindPaneOpen;
     public bool IsFindPaneOpen
@@ -134,7 +169,11 @@ public class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        var dataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "KoalaFileExplorer");
         _tagService = new TagService();
+        KeyBindings = new KeyBindingsService(dataDir);
 
         PlayCommand = new RelayCommand(PlayFile, () => CanPlayFile);
         StopCommand = new RelayCommand(StopMedia);
@@ -246,8 +285,51 @@ public class MainViewModel : ObservableObject
             }
         }
 
+        // Sort: directories first, then by chosen field
+        results = SortField switch
+        {
+            "Date" => SortAscending
+                ? results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenBy(f => f.LastModified)
+                : results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenByDescending(f => f.LastModified),
+            "Size" => SortAscending
+                ? results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenBy(f => f.Size)
+                : results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenByDescending(f => f.Size),
+            "Type" => SortAscending
+                ? results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenBy(f => f.Extension).ThenBy(f => f.Name)
+                : results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenByDescending(f => f.Extension).ThenBy(f => f.Name),
+            _ => SortAscending
+                ? results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                : results.OrderBy(f => f.IsDirectory ? 0 : 1).ThenByDescending(f => f.Name, StringComparer.OrdinalIgnoreCase),
+        };
+
         foreach (var item in results)
             Files.Add(item);
+    }
+
+    public void DeleteFiles(IReadOnlyList<FileItem> items)
+    {
+        foreach (var f in items.Where(f => !f.IsDirectory))
+        {
+            try
+            {
+                File.Delete(f.FullPath);
+                _allFiles.Remove(f);
+                Files.Remove(f);
+                FindResults.Remove(f);
+                _tagService.RemoveAllTagsFromFile(f.FullPath);
+            }
+            catch { }
+        }
+        StatusText = $"Deleted {items.Count(f => !f.IsDirectory)} file(s).";
+    }
+
+    public void RemoveAllTagsFromFilePath(string filePath)
+    {
+        _tagService.RemoveAllTagsFromFile(filePath);
+        var item = _allFiles.FirstOrDefault(f => f.FullPath.Equals(filePath, StringComparison.OrdinalIgnoreCase));
+        if (item != null) item.Tags = new List<CustomerTag>();
+        if (SelectedFile?.FullPath.Equals(filePath, StringComparison.OrdinalIgnoreCase) == true)
+            OnPropertyChanged(nameof(SelectedFileTags));
     }
 
     // ── Show All Files By Tag ─────────────────────────────────────────────

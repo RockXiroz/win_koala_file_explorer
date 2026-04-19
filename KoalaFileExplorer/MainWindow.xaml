@@ -59,6 +59,30 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="SortBtn" TargetType="Button">
+            <Setter Property="Padding" Value="5,2"/>
+            <Setter Property="Margin" Value="2,0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#424242"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#E3F2FD"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="TreeViewItem">
             <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
             <Setter Property="Padding" Value="2"/>
@@ -155,9 +179,15 @@
                             Style="{StaticResource ToolBtn}" Background="#424242" Margin="1,0,0,0" Padding="8,5"/>
                 </Grid>
 
-                <TextBlock Grid.Column="2" Text="{Binding CurrentPath}" Foreground="#B3E5FC"
-                           FontSize="11" VerticalAlignment="Center" MaxWidth="300"
-                           TextTrimming="CharacterEllipsis"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CurrentPath}" Foreground="#B3E5FC"
+                               FontSize="11" VerticalAlignment="Center" MaxWidth="220"
+                               TextTrimming="CharacterEllipsis"/>
+                    <Button Content="⌨ Keys" Click="ShowShortcutsBtn_Click"
+                            Style="{StaticResource ToolBtn}" Background="#0D47A1"
+                            Margin="8,0,0,0" Padding="8,4" FontSize="11"
+                            ToolTip="Show / customize keyboard shortcuts"/>
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -318,17 +348,28 @@
             <Border Grid.Column="2" Background="White" BorderBrush="#E0E0E0" BorderThickness="0,0,1,0">
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Background="#FAFAFA" BorderBrush="#E0E0E0"
-                            BorderThickness="0,0,0,1" Padding="8,6">
-                        <TextBlock Text="📋 File List" FontWeight="SemiBold" Foreground="#424242"/>
+                            BorderThickness="0,0,0,1" Padding="6,4">
+                        <Grid>
+                            <TextBlock Text="📋 File List" FontWeight="SemiBold" Foreground="#424242"
+                                       VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="{Binding NameSortHeader}" Click="SortName_Click" Style="{StaticResource SortBtn}"/>
+                                <Button Content="{Binding DateSortHeader}" Click="SortDate_Click" Style="{StaticResource SortBtn}"/>
+                                <Button Content="{Binding SizeSortHeader}" Click="SortSize_Click" Style="{StaticResource SortBtn}"/>
+                                <Button Content="{Binding TypeSortHeader}" Click="SortType_Click" Style="{StaticResource SortBtn}"/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <ListView x:Name="FileListView"
                               ItemsSource="{Binding Files}"
                               SelectedItem="{Binding SelectedFile, Mode=TwoWay}"
+                              SelectionMode="Extended"
                               BorderThickness="0"
                               ItemContainerStyle="{StaticResource FileListItem}"
                               SelectionChanged="FileListView_SelectionChanged"
                               MouseDoubleClick="FileListView_MouseDoubleClick"
+                              PreviewMouseRightButtonDown="FileList_PreviewMouseRightButtonDown"
                               VirtualizingStackPanel.IsVirtualizing="True"
                               VirtualizingStackPanel.VirtualizationMode="Recycling"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -514,23 +555,36 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBox x:Name="FindPathsBox" Grid.Column="0"
                                          AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                                          Height="46" FontSize="11" Padding="6,4"
                                          ToolTip="One path per line: file path or folder path (Ctrl+Enter to search)"
                                          KeyDown="FindPathsBox_KeyDown"/>
-                                <Button Grid.Column="1" Content="Search" Click="FindFilesBtn_Click"
-                                        Style="{StaticResource ToolBtn}" Margin="4,0,0,0" VerticalAlignment="Stretch"/>
+                                <Button Grid.Column="1" Content="📄 Files" Click="BrowseFilesBtn_Click"
+                                        Style="{StaticResource ToolBtn}" Margin="4,0,0,0"
+                                        VerticalAlignment="Stretch" FontSize="11"
+                                        ToolTip="Browse and select files"/>
+                                <Button Grid.Column="2" Content="📁 Folder" Click="BrowseFolderBtn_Click"
+                                        Style="{StaticResource GreenBtn}" Margin="4,0,0,0"
+                                        VerticalAlignment="Stretch" FontSize="11"
+                                        ToolTip="Browse and select a folder"/>
+                                <Button Grid.Column="3" Content="Search" Click="FindFilesBtn_Click"
+                                        Style="{StaticResource ToolBtn}" Background="#455A64"
+                                        Margin="4,0,0,0" VerticalAlignment="Stretch"/>
                             </Grid>
                             <TextBlock DockPanel.Dock="Top" Margin="8,0,8,4" FontSize="10" Foreground="#9E9E9E"
-                                       Text="Enter file or folder path (one per line or comma-separated). Ctrl+Enter to search."/>
+                                       Text="Enter or browse path(s). Ctrl+Enter to search."/>
                             <!-- Results -->
                             <ListView x:Name="FindResultsList"
                                       ItemsSource="{Binding FindResults}"
+                                      SelectionMode="Extended"
                                       BorderThickness="0"
                                       ItemContainerStyle="{StaticResource FileListItem}"
                                       MouseDoubleClick="FindResultsList_MouseDoubleClick"
+                                      PreviewMouseRightButtonDown="FileList_PreviewMouseRightButtonDown"
                                       VirtualizingStackPanel.IsVirtualizing="True"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListView.ItemTemplate>

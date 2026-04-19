@@ -43,5 +43,6 @@ public class FileItem : INotifyPropertyChanged
 
     public string Extension => IsDirectory ? "" : Path.GetExtension(Name).ToLower();
     public bool IsMediaFile => Extension is ".mp4" or ".wmv" or ".avi" or ".mkv"
-                                          or ".mov" or ".mp3" or ".wav" or ".flac";
+                                          or ".mov" or ".mp3" or ".wav" or ".flac"
+                                          or ".m2ts" or ".vob";
 }

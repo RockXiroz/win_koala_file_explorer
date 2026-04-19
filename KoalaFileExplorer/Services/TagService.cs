@@ -108,6 +108,15 @@ public class TagService
         Save();
     }
 
+    public void UpdateTagColor(string tagId, string color, string textColor)
+    {
+        var tag = _tags.FirstOrDefault(t => t.Id == tagId);
+        if (tag == null) return;
+        tag.Color = color;
+        tag.TextColor = textColor;
+        Save();
+    }
+
     public List<string> GetFilesByTag(string tagId)
         => _mappings.Where(m => m.TagIds.Contains(tagId)).Select(m => m.FilePath).ToList();
 

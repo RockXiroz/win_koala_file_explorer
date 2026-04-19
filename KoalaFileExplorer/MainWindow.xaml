@@ -258,7 +258,23 @@
                         <DockPanel>
                             <Border DockPanel.Dock="Top" Background="#EEEEEE" BorderBrush="#E0E0E0"
                                     BorderThickness="0,0,0,1" Padding="8,5">
-                                <TextBlock Text="🏷 Tags" FontWeight="SemiBold" Foreground="#424242" FontSize="12"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🏷 Tags" FontWeight="SemiBold" Foreground="#424242" FontSize="12"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Pill:" FontSize="9" Foreground="#757575"
+                                                   VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                        <Slider Minimum="7" Maximum="16"
+                                                Value="{Binding TagPillFontSize, Mode=TwoWay}"
+                                                Width="55" VerticalAlignment="Center"
+                                                SmallChange="1" LargeChange="1"
+                                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                                ToolTip="Tag pill text size"/>
+                                    </StackPanel>
+                                </Grid>
                             </Border>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="6">
@@ -293,27 +309,40 @@
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <Rectangle Grid.Column="0" Width="10" Height="10"
+                                                        <!-- Background color swatch — click to cycle -->
+                                                        <Rectangle Grid.Column="0" Width="13" Height="13"
                                                                    Fill="{Binding Color, Converter={StaticResource HexToBrush}}"
-                                                                   Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                                   Margin="0,0,2,0" VerticalAlignment="Center"
+                                                                   Cursor="Hand" Tag="{Binding}"
+                                                                   MouseLeftButtonDown="TagBgColorSwatch_Click"
+                                                                   ToolTip="Click to change background color"/>
+                                                        <!-- Text color swatch — click to cycle -->
+                                                        <Rectangle Grid.Column="1" Width="13" Height="13"
+                                                                   Fill="{Binding TextColor, Converter={StaticResource HexToBrush}}"
+                                                                   Stroke="#BDBDBD" StrokeThickness="1"
+                                                                   Margin="0,0,5,0" VerticalAlignment="Center"
+                                                                   Cursor="Hand" Tag="{Binding}"
+                                                                   MouseLeftButtonDown="TagTextColorSwatch_Click"
+                                                                   ToolTip="Click to change text color"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding Name}"
                                                                    FontSize="11" VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="2" Content="📁"
+                                                        <Button Grid.Column="3" Content="📁"
                                                                 Tag="{Binding}" Click="ShowTagFilesBtn_Click"
                                                                 Style="{StaticResource GreenBtn}"
                                                                 Padding="3,2" Margin="0,0,2,0" FontSize="10"
                                                                 ToolTip="Browse files with tag"/>
-                                                        <Button Grid.Column="3" Content="+"
+                                                        <Button Grid.Column="4" Content="+"
                                                                 Tag="{Binding}" Click="TagFileBtn_Click"
                                                                 Style="{StaticResource ToolBtn}"
                                                                 Padding="3,2" Margin="0,0,2,0" FontSize="12"
                                                                 ToolTip="Tag selected file"/>
-                                                        <Button Grid.Column="4" Content="✕"
+                                                        <Button Grid.Column="5" Content="✕"
                                                                 Tag="{Binding}" Click="DeleteTagBtn_Click"
                                                                 Style="{StaticResource DangerBtn}"
                                                                 Padding="4,2" FontSize="10"
@@ -416,7 +445,7 @@
                                                                 CornerRadius="3" Padding="3,1" Margin="1,1">
                                                             <TextBlock Text="{Binding Name}"
                                                                        Foreground="{Binding TextColor, Converter={StaticResource HexToBrush}}"
-                                                                       FontSize="8"/>
+                                                                       FontSize="{Binding DataContext.TagPillFontSize, RelativeSource={RelativeSource AncestorType=Window}}"/>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>

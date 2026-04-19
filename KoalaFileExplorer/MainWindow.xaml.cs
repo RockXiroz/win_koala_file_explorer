@@ -32,6 +32,18 @@ public partial class MainWindow : Window
     private int _textColorIndex;
     private double _findPaneHeight = 160;
 
+    // Color palettes for tag swatch cycling in the tag list
+    private static readonly string[] _swatchBgColors =
+    {
+        "#2196F3", "#E91E63", "#4CAF50", "#FF9800", "#9C27B0",
+        "#00BCD4", "#F44336", "#8BC34A", "#FF5722", "#607D8B",
+        "#795548", "#FFC107", "#3F51B5", "#009688", "#FF4081"
+    };
+    private static readonly string[] _swatchTextColors =
+    {
+        "#FFFFFF", "#000000", "#F5F5F5", "#212121", "#FFF9C4", "#FFCDD2"
+    };
+
     public MainWindow()
     {
         InitializeComponent();
@@ -473,6 +485,24 @@ public partial class MainWindow : Window
         _textColorIndex = (_textColorIndex + 1) % _textColors.Length;
         var color = (Color)ColorConverter.ConvertFromString(_textColors[_textColorIndex]);
         TagTextColorRect.Fill = new SolidColorBrush(color);
+    }
+
+    private void TagBgColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not CustomerTag tag) return;
+        var idx = Array.IndexOf(_swatchBgColors, tag.Color);
+        var next = _swatchBgColors[(idx + 1) % _swatchBgColors.Length];
+        _vm.UpdateTagColor(tag, next, tag.TextColor);
+        e.Handled = true;
+    }
+
+    private void TagTextColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not CustomerTag tag) return;
+        var idx = Array.IndexOf(_swatchTextColors, tag.TextColor);
+        var next = _swatchTextColors[(idx + 1) % _swatchTextColors.Length];
+        _vm.UpdateTagColor(tag, tag.Color, next);
+        e.Handled = true;
     }
 
     private void TagFileBtn_Click(object sender, RoutedEventArgs e)

@@ -95,6 +95,14 @@ public class MainViewModel : ObservableObject
     // ── Tags ──────────────────────────────────────────────────────────────
     public ObservableCollection<CustomerTag> AllTags { get; } = new();
 
+    // ── Tag pill size ─────────────────────────────────────────────────────
+    private double _tagPillFontSize = 8.0;
+    public double TagPillFontSize
+    {
+        get => _tagPillFontSize;
+        set => SetField(ref _tagPillFontSize, value);
+    }
+
     // ── Sort ─────────────────────────────────────────────────────────────
     private string _sortField = "Name";
     public string SortField
@@ -412,6 +420,11 @@ public class MainViewModel : ObservableObject
         RefreshTags();
         if (SelectedFile != null) OnPropertyChanged(nameof(SelectedFileTags));
         StatusText = $"Tag '{tag.Name}' deleted.";
+    }
+
+    public void UpdateTagColor(CustomerTag tag, string color, string textColor)
+    {
+        _tagService.UpdateTagColor(tag.Id, color, textColor);
     }
 
     public void AddTagToFilePublic(CustomerTag? tag)

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -91,6 +92,36 @@ public partial class MainWindow : Window
         {
             lv.SelectedItems.Clear();
             lv.SelectedItem = item;
+        }
+    }
+
+    // ── File drag-and-drop to Windows Explorer ─────────────────────────────
+    private System.Windows.Point _fileDragAnchor;
+
+    private void FileList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        => _fileDragAnchor = e.GetPosition(null);
+
+    private void FileList_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        var delta = e.GetPosition(null) - _fileDragAnchor;
+        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+
+        var paths = FileListView.SelectedItems.OfType<FileItem>()
+            .Select(f => f.FullPath).ToArray();
+        if (paths.Length == 0) return;
+
+        var data = new DataObject(DataFormats.FileDrop, paths);
+        var result = DragDrop.DoDragDrop(FileListView, data,
+            DragDropEffects.Copy | DragDropEffects.Move | DragDropEffects.Link);
+
+        if (result == DragDropEffects.Move)
+        {
+            // Shell moved the files — refresh current folder
+            var path = _vm.CurrentPath;
+            if (System.IO.Directory.Exists(path))
+                _vm.NavigateTo(path);
         }
     }
 
@@ -392,18 +423,33 @@ public partial class MainWindow : Window
         }
     }
 
-    private void SeekSlider_MouseDown(object sender, MouseButtonEventArgs e) => _isDraggingSlider = true;
-
-    private void SeekSlider_MouseUp(object sender, MouseButtonEventArgs e)
+    private void SeekSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        _isDraggingSlider = false;
-        if (_isMediaLoaded) MediaPlayer.Position = TimeSpan.FromSeconds(SeekSlider.Value);
+        _isDraggingSlider = true;
+        if (sender is Slider slider && _isMediaLoaded && slider.ActualWidth > 0)
+        {
+            // Compute exact position from click coordinates — reliable for any point on the track
+            var ratio = Math.Clamp(e.GetPosition(slider).X / slider.ActualWidth, 0.0, 1.0);
+            slider.Value = slider.Minimum + ratio * (slider.Maximum - slider.Minimum);
+            MediaPlayer.Position = TimeSpan.FromSeconds(slider.Value);
+        }
     }
 
-    private void SeekSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void SeekSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (_isDraggingSlider && _isMediaLoaded)
             MediaPlayer.Position = TimeSpan.FromSeconds(SeekSlider.Value);
+        _isDraggingSlider = false;
+    }
+
+    private void SeekSlider_DragStarted(object sender, DragStartedEventArgs e)
+        => _isDraggingSlider = true;
+
+    private void SeekSlider_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (_isMediaLoaded)
+            MediaPlayer.Position = TimeSpan.FromSeconds(SeekSlider.Value);
+        _isDraggingSlider = false;
     }
 
     private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

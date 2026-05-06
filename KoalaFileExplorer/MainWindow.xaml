@@ -413,6 +413,9 @@
                               SelectionChanged="FileListView_SelectionChanged"
                               MouseDoubleClick="FileListView_MouseDoubleClick"
                               PreviewMouseRightButtonDown="FileList_PreviewMouseRightButtonDown"
+                              PreviewMouseLeftButtonDown="FileList_PreviewMouseLeftButtonDown"
+                              MouseMove="FileList_MouseMove"
+                              AllowDrop="False"
                               VirtualizingStackPanel.IsVirtualizing="True"
                               VirtualizingStackPanel.VirtualizationMode="Recycling"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -553,9 +556,10 @@
                         <StackPanel>
                             <Slider x:Name="SeekSlider" Minimum="0" Maximum="1" Margin="0,0,0,4"
                                     IsMoveToPointEnabled="True"
-                                    PreviewMouseLeftButtonDown="SeekSlider_MouseDown"
-                                    PreviewMouseLeftButtonUp="SeekSlider_MouseUp"
-                                    ValueChanged="SeekSlider_ValueChanged"/>
+                                    PreviewMouseLeftButtonDown="SeekSlider_PreviewMouseDown"
+                                    PreviewMouseLeftButtonUp="SeekSlider_PreviewMouseUp"
+                                    Thumb.DragStarted="SeekSlider_DragStarted"
+                                    Thumb.DragCompleted="SeekSlider_DragCompleted"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <Button Content="⏮" Click="StopBtn_Click" Style="{StaticResource ToolBtn}"
                                         Background="#616161" ToolTip="Stop"/>
